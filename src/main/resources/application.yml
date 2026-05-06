@@ -1,0 +1,87 @@
+spring:
+  application:
+    name: spring-demo
+
+  datasource:
+    url: jdbc:h2:mem:demodb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  sql:
+    init:
+      mode: always
+
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: true
+
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+
+# Actuator: expose health and info publicly (status only),
+# expose more details when authorized (handled in SecurityConfig)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, env, beans, mappings, loggers
+  endpoint:
+    health:
+      show-details: when_authorized
+      show-components: when_authorized
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+    java:
+      enabled: true
+    os:
+      enabled: true
+    build:
+      enabled: true
+    git:
+      enabled: false
+
+info:
+  app:
+    name: spring-demo
+    description: Spring Boot 3.5.13 demo with role-based security and CRUD
+    version: 1.0.0
+    contact: demo@example.com
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    root: INFO
+    com.example.demo: DEBUG
+    org.springframework.security: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%X{traceId:-}] [%X{user:-}] %logger{36} - %msg%n"

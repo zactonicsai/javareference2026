@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>spring-demo // console</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --panel: #111111;
+            --line: #1f1f1f;
+            --line-strong: #2a2a2a;
+            --ink: #ededed;
+            --muted: #777;
+            --accent: #c4ff3e;
+            --accent-dim: #8aab2a;
+            --warn: #ff5f5f;
+            --info: #5fb3ff;
+            --ok: #4ade80;
+        }
+        * { font-feature-settings: "ss01", "cv11"; }
+        body {
+            background: var(--bg);
+            color: var(--ink);
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            background-image:
+                linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        h1, h2, .display { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.02em; }
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 0;
+        }
+        .panel-header {
+            border-bottom: 1px solid var(--line);
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--muted);
+        }
+        .accent { color: var(--accent); }
+        .btn {
+            background: transparent;
+            border: 1px solid var(--line-strong);
+            color: var(--ink);
+            padding: 8px 14px;
+            font-family: inherit;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            transition: all 120ms ease;
+        }
+        .btn:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+        .btn-primary:hover { background: #d8ff5e; color: #000; border-color: #d8ff5e; }
+        .btn-danger { border-color: var(--warn); color: var(--warn); }
+        .btn-danger:hover { background: var(--warn); color: #000; }
+        .input, .textarea {
+            background: #0a0a0a;
+            border: 1px solid var(--line-strong);
+            color: var(--ink);
+            padding: 8px 12px;
+            font-family: inherit;
+            font-size: 13px;
+            width: 100%;
+            outline: none;
+        }
+        .input:focus, .textarea:focus { border-color: var(--accent); }
+        .label {
+            display: block;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            border: 1px solid currentColor;
+        }
+        .badge-ok { color: var(--ok); }
+        .badge-warn { color: var(--warn); }
+        .badge-info { color: var(--info); }
+        .badge-accent { color: var(--accent); }
+        pre.code {
+            background: #050505;
+            border: 1px solid var(--line);
+            color: #c5d4cf;
+            padding: 14px;
+            font-size: 12px;
+            line-height: 1.55;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 380px;
+            overflow-y: auto;
+        }
+        table { border-collapse: collapse; width: 100%; }
+        th, td {
+            border-bottom: 1px solid var(--line);
+            padding: 10px 12px;
+            font-size: 12px;
+            text-align: left;
+            vertical-align: middle;
+        }
+        th {
+            color: var(--muted);
+            font-weight: 500;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+        }
+        tr:hover td { background: #0d0d0d; }
+        .blink { animation: blink 1.4s ease-in-out infinite; }
+        @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: 0.3 } }
+        .grid-overlay {
+            position: fixed; inset: 0; pointer-events: none;
+            background: radial-gradient(circle at 50% 0%, rgba(196,255,62,0.06), transparent 60%);
+            z-index: 0;
+        }
+        .scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .scrollbar::-webkit-scrollbar-track { background: var(--bg); }
+        .scrollbar::-webkit-scrollbar-thumb { background: var(--line-strong); }
+        .corner-tl { position: relative; }
+        .corner-tl::before {
+            content: ''; position: absolute; top: -1px; left: -1px;
+            width: 12px; height: 12px;
+            border-top: 2px solid var(--accent); border-left: 2px solid var(--accent);
+        }
+        .tab {
+            padding: 12px 18px;
+            color: var(--muted);
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            transition: all 120ms;
+        }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab:hover:not(.active) { color: var(--ink); }
+        details summary { cursor: pointer; list-style: none; }
+        details summary::-webkit-details-marker { display: none; }
+        .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+        .dot-ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+        .dot-off { background: #444; }
+        .ascii-bar {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent);
+            line-height: 1;
+            font-size: 10px;
+            opacity: 0.4;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+<div class="grid-overlay"></div>
+
+<div class="relative z-10 max-w-7xl mx-auto px-6 py-10">
+
+    <!-- HEADER -->
+    <header class="mb-10">
+        <div class="flex items-end justify-between flex-wrap gap-4">
+            <div>
+                <div class="text-xs text-[color:var(--muted)] tracking-[0.3em] uppercase mb-3">
+                    [ spring-boot 3.5.13 / java 21 ]
+                </div>
+                <h1 class="display text-5xl md:text-6xl font-bold leading-none">
+                    spring<span class="accent">_</span>demo
+                    <span class="blink accent">▋</span>
+                </h1>
+                <p class="mt-3 text-sm text-[color:var(--muted)] max-w-xl">
+                    Role-based security · CRUD · audit · global error handling — a console for poking the live API.
+                </p>
+            </div>
+            <div id="authStatus" class="text-right">
+                <div class="text-xs text-[color:var(--muted)] mb-1">SESSION</div>
+                <div class="flex items-center gap-2 justify-end">
+                    <span id="authDot" class="status-dot dot-off"></span>
+                    <span id="authText" class="text-sm">disconnected</span>
+                </div>
+            </div>
+        </div>
+        <pre class="ascii-bar mt-4">═══════════════════════════════════════════════════════════════════════════════</pre>
+    </header>
+
+    <!-- LOGIN PANEL -->
+    <section id="loginSection" class="mb-10 corner-tl">
+        <div class="panel">
+            <div class="panel-header">
+                <span>// authenticate</span>
+                <span class="text-[10px] text-[color:var(--muted)]">basic-auth · stateless</span>
+            </div>
+            <div class="p-6 grid md:grid-cols-3 gap-4 items-end">
+                <div>
+                    <label class="label">user</label>
+                    <input id="username" class="input" placeholder="admin" autocomplete="username" />
+                </div>
+                <div>
+                    <label class="label">password</label>
+                    <input id="password" type="password" class="input" placeholder="admin123" autocomplete="current-password" />
+                </div>
+                <div class="flex gap-2">
+                    <button class="btn btn-primary flex-1" onclick="login()">connect</button>
+                    <button class="btn" onclick="logout()">clear</button>
+                </div>
+            </div>
+            <div class="px-6 pb-5 text-[11px] text-[color:var(--muted)]">
+                hint:
+                <span class="badge badge-accent ml-2">admin / admin123</span>
+                <span class="badge badge-info ml-1">manager / manager123</span>
+                <span class="badge ml-1">user / user123</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- TABS -->
+    <nav class="flex border-b border-[color:var(--line)] mb-8 overflow-x-auto scrollbar">
+        <div class="tab active" data-tab="role">role&nbsp;dto</div>
+        <div class="tab" data-tab="products">products&nbsp;crud</div>
+        <div class="tab" data-tab="health">health</div>
+        <div class="tab" data-tab="actuator">actuator</div>
+    </nav>
+
+    <!-- ROLE TAB -->
+    <section data-panel="role" class="space-y-6">
+        <div class="panel">
+            <div class="panel-header">
+                <span>GET /api/role/me</span>
+                <span class="badge badge-info">role-aware</span>
+            </div>
+            <div class="p-6">
+                <p class="text-sm text-[color:var(--muted)] mb-4">
+                    Returns <span class="accent">AdminDto</span>, <span class="accent">ManagerDto</span> or <span class="accent">UserDto</span> depending on who you are.
+                </p>
+                <button class="btn btn-primary" onclick="callRoleMe()">fetch /me</button>
+                <pre class="code mt-4 scrollbar" id="roleResult">// response will appear here</pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- PRODUCTS TAB -->
+    <section data-panel="products" class="space-y-6 hidden">
+        <div class="grid lg:grid-cols-5 gap-6">
+            <!-- form -->
+            <div class="panel lg:col-span-2 corner-tl">
+                <div class="panel-header">
+                    <span id="formTitle">// create product</span>
+                    <span id="formBadge" class="badge badge-accent">POST</span>
+                </div>
+                <div class="p-6 space-y-4">
+                    <input type="hidden" id="prod-id" />
+                    <div>
+                        <label class="label">name</label>
+                        <input id="prod-name" class="input" placeholder="Wireless Mouse" />
+                    </div>
+                    <div>
+                        <label class="label">description</label>
+                        <textarea id="prod-description" class="textarea" rows="3" placeholder="Ergonomic 2.4GHz wireless mouse"></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="label">price</label>
+                            <input id="prod-price" type="number" step="0.01" class="input" placeholder="29.99" />
+                        </div>
+                        <div>
+                            <label class="label">stock</label>
+                            <input id="prod-stock" type="number" class="input" placeholder="100" />
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="prodSubmit" class="btn btn-primary flex-1" onclick="submitProduct()">create</button>
+                        <button class="btn" onclick="resetProductForm()">reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- list -->
+            <div class="panel lg:col-span-3">
+                <div class="panel-header">
+                    <span>// products</span>
+                    <button class="btn !py-1 !px-3 text-[10px]" onclick="loadProducts()">↻ refresh</button>
+                </div>
+                <div class="overflow-x-auto scrollbar">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>id</th>
+                                <th>name</th>
+                                <th>price</th>
+                                <th>stock</th>
+                                <th class="text-right">actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsTbody">
+                            <tr><td colspan="5" class="text-center text-[color:var(--muted)] py-8">no data — connect &amp; refresh</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header"><span>// last response</span></div>
+            <pre class="code scrollbar" id="productsResult">// response will appear here</pre>
+        </div>
+    </section>
+
+    <!-- HEALTH TAB -->
+    <section data-panel="health" class="space-y-6 hidden">
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="panel corner-tl">
+                <div class="panel-header">
+                    <span>GET /api/health/public</span>
+                    <span class="badge badge-ok">public</span>
+                </div>
+                <div class="p-6">
+                    <button class="btn btn-primary" onclick="callHealth('public')">fetch</button>
+                    <pre class="code mt-4 scrollbar" id="healthPublicResult">//</pre>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <span>GET /api/health/secure</span>
+                    <span class="badge badge-warn">auth</span>
+                </div>
+                <div class="p-6">
+                    <button class="btn btn-primary" onclick="callHealth('secure')">fetch</button>
+                    <pre class="code mt-4 scrollbar" id="healthSecureResult">//</pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ACTUATOR TAB -->
+    <section data-panel="actuator" class="space-y-6 hidden">
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="panel">
+                <div class="panel-header">
+                    <span>GET /actuator/health</span>
+                    <span class="badge badge-ok">public · richer when auth</span>
+                </div>
+                <div class="p-6">
+                    <button class="btn btn-primary" onclick="callActuator('health')">fetch</button>
+                    <pre class="code mt-4 scrollbar" id="actHealthResult">//</pre>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <span>GET /actuator/info</span>
+                    <span class="badge badge-ok">public</span>
+                </div>
+                <div class="p-6">
+                    <button class="btn btn-primary" onclick="callActuator('info')">fetch</button>
+                    <pre class="code mt-4 scrollbar" id="actInfoResult">//</pre>
+                </div>
+            </div>
+            <div class="panel md:col-span-2">
+                <div class="panel-header">
+                    <span>GET /actuator/metrics</span>
+                    <span class="badge badge-warn">admin</span>
+                </div>
+                <div class="p-6">
+                    <button class="btn btn-primary" onclick="callActuator('metrics')">fetch</button>
+                    <pre class="code mt-4 scrollbar" id="actMetricsResult">//</pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="mt-16 pt-6 border-t border-[color:var(--line)] text-xs text-[color:var(--muted)] flex flex-wrap gap-x-6 gap-y-2 justify-between">
+        <span>spring-demo · v1.0.0</span>
+        <span>
+            <a class="hover:text-[color:var(--accent)]" href="/swagger-ui.html" target="_blank">swagger</a> ·
+            <a class="hover:text-[color:var(--accent)]" href="/h2-console" target="_blank">h2-console</a> ·
+            <a class="hover:text-[color:var(--accent)]" href="/v3/api-docs" target="_blank">openapi.json</a>
+        </span>
+    </footer>
+</div>
+
+<script>
+    // ---------- state ----------
+    let creds = null; // { user, pass, basic }
+
+    // ---------- helpers ----------
+    function authHeader() {
+        return creds ? { 'Authorization': 'Basic ' + creds.basic } : {};
+    }
+    function setAuthUI() {
+        const dot = document.getElementById('authDot');
+        const txt = document.getElementById('authText');
+        if (creds) {
+            dot.className = 'status-dot dot-ok';
+            txt.innerHTML = `<span class="accent">${creds.user}</span>@spring-demo`;
+        } else {
+            dot.className = 'status-dot dot-off';
+            txt.textContent = 'disconnected';
+        }
+    }
+    function pretty(obj) { return typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2); }
+    async function call(url, options = {}) {
+        const headers = { 'Content-Type': 'application/json', ...authHeader(), ...(options.headers || {}) };
+        const res = await fetch(url, { ...options, headers });
+        const text = await res.text();
+        let body; try { body = JSON.parse(text); } catch { body = text; }
+        return { status: res.status, ok: res.ok, body };
+    }
+    function show(elId, result) {
+        const tag = result.ok ? '✓' : '✗';
+        const color = result.ok ? 'var(--ok)' : 'var(--warn)';
+        document.getElementById(elId).innerHTML =
+            `<span style="color:${color}">${tag} ${result.status}</span>\n\n` + escapeHtml(pretty(result.body));
+    }
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    }
+
+    // ---------- auth ----------
+    function login() {
+        const user = document.getElementById('username').value.trim();
+        const pass = document.getElementById('password').value;
+        if (!user || !pass) { alert('user + password required'); return; }
+        creds = { user, pass, basic: btoa(`${user}:${pass}`) };
+        setAuthUI();
+        // verify by calling /api/role/me
+        callRoleMe();
+        loadProducts();
+    }
+    function logout() {
+        creds = null;
+        document.getElementById('username').value = '';
+        document.getElementById('password').value = '';
+        setAuthUI();
+    }
+
+    // ---------- tabs ----------
+    document.querySelectorAll('.tab').forEach(t => {
+        t.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+            t.classList.add('active');
+            const target = t.dataset.tab;
+            document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== target));
+        });
+    });
+
+    // ---------- role ----------
+    async function callRoleMe() {
+        const r = await call('/api/role/me');
+        show('roleResult', r);
+    }
+
+    // ---------- products ----------
+    async function loadProducts() {
+        const r = await call('/api/products');
+        show('productsResult', r);
+        const tbody = document.getElementById('productsTbody');
+        if (!r.ok || !Array.isArray(r.body)) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-[color:var(--warn)] py-8">${escapeHtml(pretty(r.body))}</td></tr>`;
+            return;
+        }
+        if (r.body.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-[color:var(--muted)] py-8">empty</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = r.body.map(p => `
+            <tr>
+                <td class="text-[color:var(--muted)]">#${p.id}</td>
+                <td><div class="text-[color:var(--ink)] font-medium">${escapeHtml(p.name)}</div>
+                    <div class="text-[10px] text-[color:var(--muted)]">${escapeHtml(p.description || '')}</div></td>
+                <td class="accent">$${Number(p.price).toFixed(2)}</td>
+                <td>${p.stock}</td>
+                <td class="text-right">
+                    <button class="btn !py-1 !px-2 text-[10px]" onclick='editProduct(${JSON.stringify(p)})'>edit</button>
+                    <button class="btn btn-danger !py-1 !px-2 text-[10px]" onclick="deleteProduct(${p.id})">del</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+    function editProduct(p) {
+        document.getElementById('prod-id').value = p.id;
+        document.getElementById('prod-name').value = p.name;
+        document.getElementById('prod-description').value = p.description || '';
+        document.getElementById('prod-price').value = p.price;
+        document.getElementById('prod-stock').value = p.stock;
+        document.getElementById('formTitle').textContent = '// edit product #' + p.id;
+        document.getElementById('formBadge').textContent = 'PUT';
+        document.getElementById('prodSubmit').textContent = 'update';
+    }
+    function resetProductForm() {
+        document.getElementById('prod-id').value = '';
+        ['prod-name','prod-description','prod-price','prod-stock'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('formTitle').textContent = '// create product';
+        document.getElementById('formBadge').textContent = 'POST';
+        document.getElementById('prodSubmit').textContent = 'create';
+    }
+    async function submitProduct() {
+        const id = document.getElementById('prod-id').value;
+        const body = {
+            name: document.getElementById('prod-name').value.trim(),
+            description: document.getElementById('prod-description').value.trim(),
+            price: parseFloat(document.getElementById('prod-price').value),
+            stock: parseInt(document.getElementById('prod-stock').value, 10)
+        };
+        const url = id ? `/api/products/${id}` : '/api/products';
+        const method = id ? 'PUT' : 'POST';
+        const r = await call(url, { method, body: JSON.stringify(body) });
+        show('productsResult', r);
+        if (r.ok) { resetProductForm(); loadProducts(); }
+    }
+    async function deleteProduct(id) {
+        if (!confirm('Delete product #' + id + '?')) return;
+        const r = await call(`/api/products/${id}`, { method: 'DELETE' });
+        show('productsResult', r);
+        loadProducts();
+    }
+
+    // ---------- health ----------
+    async function callHealth(kind) {
+        const r = await call(`/api/health/${kind}`);
+        show(kind === 'public' ? 'healthPublicResult' : 'healthSecureResult', r);
+    }
+
+    // ---------- actuator ----------
+    async function callActuator(name) {
+        const r = await call(`/actuator/${name}`);
+        const map = { health: 'actHealthResult', info: 'actInfoResult', metrics: 'actMetricsResult' };
+        show(map[name], r);
+    }
+
+    // initial paint
+    setAuthUI();
+</script>
+</body>
+</html>
