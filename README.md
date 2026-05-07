@@ -1,190 +1,234 @@
 # spring-demo
 
-Spring Boot **3.5.13** / Java **21** reference app demonstrating:
+Spring Boot 3.5.13 / Java 21 reference app demonstrating:
 
-- HTTP Basic security with three static roles (`ADMIN`, `MANAGER`, `USER`)
-- One controller that returns **different DTOs per role** (`AdminDto`, `ManagerDto` w/ base `PersonDto`, `UserDto`)
-- CRUD against an **H2** in-memory database (`Product` entity)
-- Method-level authorization via Spring Security
-- **Audit filter** that logs every request with `traceId`, user, roles, latency
-- **Global exception handler** with a base `BaseAppException` and per-controller / per-CRUD sub-exceptions, returning a consistent `ErrorResponse` envelope with stable error codes
-- **OpenAPI / Swagger UI** for all endpoints
-- **Actuator** with public `health` & `info`, richer details when authenticated, full set restricted to `ADMIN`
-- **Lombok** to keep boilerplate down
-- A **Tailwind / vanilla-JS** static console at `/`
-- **Curl** + **Python (stdlib)** clients
-- **Docker Compose** to run it end-to-end
+- HTTP Basic auth with three roles (`admin`, `manager`, `user`) and per-route authorization
+- Role-aware DTO responses (`/api/role/me` returns `AdminDto` / `ManagerDto` / `UserDto`)
+- A typed exception hierarchy with a single global handler returning a stable error envelope
+- An audit filter that injects a request id into the SLF4J `MDC`
+- **Two parallel CRUD stores** for the same `products` resource:
+  - `/api/products/*` — direct H2 access (synchronous, in-process)
+  - `/api/products-temporal/*` — writes go through Temporal workflows that run in a separate worker container and persist to Postgres
+- **File upload** at `/api/files/*` writing to S3 on LocalStack (metadata in H2, content in S3)
+- A Tailwind/JetBrains Mono dark "terminal" front-end at `/index.html` exercising every endpoint
+- Swagger UI at `/swagger-ui.html` and Actuator endpoints
+- A `Dockerfile`, `docker-compose.yml`, `mvnw` wrapper, and pure-stdlib clients in `clients/`
+
+---
+
+## Architecture
+
+```
+         ┌──────────────────────────────────────────────────────────────┐
+         │  spring-demo-api (port 8080, profile=default)               │
+         │  ─ /api/products/*           → H2 (in-memory)               │
+         │  ─ /api/products-temporal/*  → starts workflow ──┐          │
+         │  ─ /api/files/*              → S3 (LocalStack) ──┼─→ s3     │
+         └────────────┬─────────────────────────────────────┼──────────┘
+                      │                                     │
+                      ▼ (workflow start)                    ▼
+              ┌───────────────┐                       ┌─────────────┐
+              │   temporal    │  task queue:          │  localstack │
+              │   :7233       │  product-task-queue   │   :4566     │
+              └───────┬───────┘                       └─────────────┘
+                      ▼ (poll & dispatch)
+         ┌──────────────────────────────────────────────────────────────┐
+         │  spring-demo-worker (no HTTP, profile=worker)               │
+         │  ─ CreateProductWorkflowImpl                                │
+         │  ─ UpdateProductWorkflowImpl    ──→ ProductActivities ──┐   │
+         │  ─ DeleteProductWorkflowImpl                            │   │
+         └─────────────────────────────────────────────────────────┼───┘
+                                                                   ▼
+                                                          ┌─────────────┐
+                                                          │ postgres 17 │
+                                                          │   :5432     │
+                                                          │  demodb,    │
+                                                          │  temporal,  │
+                                                          │  temporal_  │
+                                                          │   visibility│
+                                                          └─────────────┘
+```
+
+The api and worker are **the same JAR** built once. The Spring profile selects whether the
+process runs the web server (`default`) or only the Temporal worker (`worker`). The worker
+profile sets `spring.main.web-application-type: none` and turns on
+`spring.temporal.workers-auto-discovery.packages` so `@WorkflowImpl` and `@ActivityImpl`
+beans are picked up and registered against the `product-task-queue`.
+
+Reads on `/api/products-temporal/*` go directly to Postgres (CQRS-lite). Writes are durable:
+the controller calls `WorkflowClient.newWorkflowStub(...)` and waits for the workflow to
+complete — if the worker crashes mid-flight, Temporal will reschedule the activity on
+another worker.
 
 ---
 
 ## Quick start
 
-### Run with Maven (wrapper included — no local Maven needed)
-```bash
-./mvnw spring-boot:run         # downloads Maven on first run
-# or, if you have Maven installed:
-mvn spring-boot:run
-```
+### Local (full stack)
 
-### Run the test suite
-```bash
-./mvnw test
-```
-The suite covers role-aware DTO selection, full CRUD with role gates, validation
-and not-found error envelopes, audit `traceId` propagation, public vs secured
-actuator/health, and the exception hierarchy.
-
-### Run with Docker Compose
 ```bash
 docker compose up --build
 ```
 
-App runs on **http://localhost:8080**.
+That brings up six services:
 
-| URL | What |
-| --- | --- |
-| `http://localhost:8080/` | Static HTML console (login + tester) |
-| `http://localhost:8080/swagger-ui.html` | API docs |
-| `http://localhost:8080/v3/api-docs` | OpenAPI JSON |
-| `http://localhost:8080/h2-console` | H2 DB console (`jdbc:h2:mem:demodb`, user `sa`, no password) |
-| `http://localhost:8080/actuator/health` | Health (public, status only) |
-| `http://localhost:8080/actuator/info` | Info (public) |
-
-### Built-in users
-
-| User | Password | Roles |
+| service | port | purpose |
 | --- | --- | --- |
-| `admin` | `admin123` | `ADMIN`, `MANAGER`, `USER` |
-| `manager` | `manager123` | `MANAGER`, `USER` |
+| `postgres` | 5432 | hosts `demodb` (app) + `temporal` + `temporal_visibility` |
+| `temporal` | 7233 | gRPC frontend |
+| `temporal-ui` | 8088 | web UI — open <http://localhost:8088> |
+| `localstack` | 4566 | S3 endpoint, bucket `demo-uploads` auto-created |
+| `spring-demo-api` | 8080 | the application |
+| `spring-demo-worker` | — | Temporal task processor (no HTTP) |
+
+Open:
+
+- <http://localhost:8080/index.html> — interactive console
+- <http://localhost:8080/swagger-ui.html> — OpenAPI
+- <http://localhost:8088> — Temporal Web UI (watch a workflow run when you POST to `/api/products-temporal`)
+
+### Without Docker (api only, H2 endpoints)
+
+```bash
+./mvnw spring-boot:run
+```
+
+The `/api/products-temporal/*` and `/api/files/*` endpoints will fail at runtime since
+neither Temporal, Postgres, nor LocalStack are running, but everything under
+`/api/products/*` and the role/health/actuator endpoints work fine.
+
+---
+
+## Credentials
+
+| user | password | role |
+| --- | --- | --- |
+| `admin` | `admin123` | `ADMIN` |
+| `manager` | `manager123` | `MANAGER` |
 | `user` | `user123` | `USER` |
+
+All three roles can list products. `MANAGER+` can create and update; only `ADMIN` can
+delete. File uploads are open to any authenticated user; only `ADMIN` can delete files.
+The same matrix applies to `/api/products-temporal/*`.
 
 ---
 
 ## Endpoints
 
-### Role-aware
-| Method | Path | Auth | Returns |
-| --- | --- | --- | --- |
-| GET | `/api/role/me` | any role | `AdminDto` / `ManagerDto` / `UserDto` based on caller |
+### Roles
 
-### Products (CRUD)
-| Method | Path | Required role |
-| --- | --- | --- |
-| GET | `/api/products` | `USER`+ |
-| GET | `/api/products/{id}` | `USER`+ |
-| POST | `/api/products` | `MANAGER`+ |
-| PUT | `/api/products/{id}` | `MANAGER`+ |
-| DELETE | `/api/products/{id}` | `ADMIN` only |
+```
+GET /api/role/me              # role-aware payload
+```
 
-### Health controller
-| Method | Path | Auth |
-| --- | --- | --- |
-| GET | `/api/health/public` | none |
-| GET | `/api/health/secure` | any authenticated |
+### Products (H2, synchronous)
+
+```
+GET    /api/products          # any auth user
+GET    /api/products/{id}
+POST   /api/products          # MANAGER+
+PUT    /api/products/{id}     # MANAGER+
+DELETE /api/products/{id}     # ADMIN
+```
+
+### Products (Temporal/Postgres)
+
+```
+GET    /api/products-temporal       # reads from Postgres directly
+GET    /api/products-temporal/{id}
+POST   /api/products-temporal       # CreateProductWorkflow → activity → Postgres
+PUT    /api/products-temporal/{id}  # UpdateProductWorkflow
+DELETE /api/products-temporal/{id}  # DeleteProductWorkflow (ADMIN)
+```
+
+Workflow IDs are deterministic and logged — `product-create-<uuid>`,
+`product-update-<id>-<uuid>`, `product-delete-<id>-<uuid>` — so you can find runs in the
+Temporal Web UI by filtering on the prefix.
+
+### Files (S3 via LocalStack)
+
+```
+POST   /api/files/upload       # multipart, max 10 MB
+GET    /api/files
+GET    /api/files/{id}         # metadata + 15-minute presigned download URL
+GET    /api/files/{id}/download # streams content through the API
+DELETE /api/files/{id}         # ADMIN
+```
+
+### Health & Actuator
+
+```
+GET /api/health/public         # no auth
+GET /api/health/secure         # any auth user
+GET /actuator/health           # public, full details when authorized
+GET /actuator/info, /actuator/metrics, /actuator/env, ...   # ADMIN
+```
 
 ---
 
 ## Error envelope
 
-All errors return a consistent body:
+Every non-2xx response — validation failure, not-found, forbidden, workflow failure —
+goes through `GlobalExceptionHandler` and comes back as:
 
 ```json
 {
-  "timestamp": "2026-05-06T15:00:00Z",
+  "timestamp": "2026-05-06T15:24:33.121Z",
   "status": 404,
   "error": "Not Found",
   "code": "PRODUCT_NOT_FOUND",
   "message": "Product not found with id: 9999",
-  "path": "/api/products/9999",
-  "traceId": "8c1e2c3a-..."
+  "path": "/api/products-temporal/9999",
+  "traceId": "8b1f...c3a"
 }
 ```
 
-| Code | When |
-| --- | --- |
-| `VALIDATION_FAILED` | `@Valid` body failed |
-| `CONSTRAINT_VIOLATION` | `@RequestParam` / `@PathVariable` failed |
-| `MALFORMED_JSON` | invalid JSON body |
-| `METHOD_NOT_ALLOWED` | wrong HTTP method |
-| `ENDPOINT_NOT_FOUND` | unknown URI |
-| `ACCESS_DENIED` | missing role |
-| `UNAUTHENTICATED` | no/invalid credentials |
-| `PRODUCT_NOT_FOUND` | unknown product id |
-| `PRODUCT_ALREADY_EXISTS` | duplicate name on POST |
-| `PRODUCT_INVALID` | business rule failed |
-| `ROLE_UNKNOWN` | principal has no expected role |
-| `HEALTH_CHECK_FAILED` | health probe rejected |
-| `INTERNAL_ERROR` | unhandled exception (last-resort) |
+Activity failures are converted from Temporal's `ApplicationFailure` back to the same
+typed domain exceptions (see `ProductTemporalService#translate`), so the HTTP status and
+`code` are stable regardless of which CRUD store handled the request.
 
 ---
 
-## Clients
+## Configuration knobs
 
-### Curl
+These environment variables are read from `application.yml`:
+
+| var | default | purpose |
+| --- | --- | --- |
+| `POSTGRES_URL` | `jdbc:postgresql://localhost:5432/demodb` | Postgres JDBC URL |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` | `demo` / `demo` | DB credentials |
+| `TEMPORAL_TARGET` | `local` | Temporal frontend host (use `temporal:7233` in compose) |
+| `TEMPORAL_NAMESPACE` | `default` | Temporal namespace |
+| `S3_ENDPOINT` | `http://localhost:4566` | S3 / LocalStack endpoint |
+| `S3_REGION` | `us-east-1` | |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | `test` / `test` | LocalStack accepts anything |
+| `S3_BUCKET` | `demo-uploads` | bucket name |
+| `SPRING_PROFILES_ACTIVE` | `default` | switch to `worker` for the task processor |
+
+---
+
+## Try it from the CLI
+
 ```bash
-chmod +x clients/curl-examples.sh
-./clients/curl-examples.sh                 # run the whole tour
-./clients/curl-examples.sh role-admin      # one demo at a time
+# Start everything
+docker compose up -d --build
+
+# Wait ~30s for Temporal/Postgres to become healthy, then:
+./clients/curl-examples.sh                     # run all demos
+./clients/curl-examples.sh create-temporal-product
+./clients/curl-examples.sh upload-file
+python3 clients/client.py                      # full Python suite (stdlib only)
 ```
 
-### Python (stdlib only)
+## Running tests
+
 ```bash
-python3 clients/client.py
-python3 clients/client.py --base-url http://localhost:8080
+./mvnw test
 ```
 
----
-
-## Audit log sample
-
-Every request emits:
-```
-AUDIT ts=2026-05-06T14:01:22Z traceId=2f87... user=manager roles=[ROLE_MANAGER, ROLE_USER]
-      method=POST uri=/api/products query= status=201 elapsedMs=23 ip=127.0.0.1 ua="curl/8.4"
-```
-
-The `traceId` is also returned to the caller in `X-Trace-Id` and embedded in any error response.
-
----
-
-## Best practices baked in
-
-**Spring Security**
-- Stateless session (`SessionCreationPolicy.STATELESS`)
-- BCrypt password hashes even for in-memory users
-- Default-deny: every endpoint is explicitly authorized
-- Method security enabled (`@EnableMethodSecurity`) so `@PreAuthorize` is also available
-- CORS centrally configured
-
-**Controller advice**
-- One `@RestControllerAdvice` for errors, one filter for audit
-- Most-specific exception handlers first; generic `Exception` as last resort
-- Stack traces never leak — only structured `ErrorResponse`
-- Audit `traceId` in MDC → present in every log line + every error response
-
-**Exceptions**
-- `BaseAppException` carries HTTP status + stable error code
-- Sub-exceptions per controller (`RoleException`, `ProductException`, `HealthException`)
-- Specific concrete subtypes per failure (`ProductNotFoundException`, …) — avoids string matching in handlers
-
-**JPA**
-- `@CreatedDate` / `@LastModifiedDate` via `AuditingEntityListener`
-- `@Transactional(readOnly = true)` on read paths
-- Repository extends only what's needed
-
-**Actuator**
-- `health` and `info` public, but only minimal info unless authorized
-- Everything else requires `ADMIN`
-- `show-details: when_authorized` so anonymous callers see only `UP`/`DOWN`
-
-**Validation**
-- Bean validation on every DTO with explicit messages
-- Field-level errors surfaced in the error response
-
-**Container**
-- Multi-stage Docker build with dependency cache
-- Runs as non-root user
-- Container healthcheck hitting `/actuator/health`
+Tests use Spring Security's `MockMvc` integration plus an embedded Temporal test server
+(`io.temporal:temporal-testing`) so no external infrastructure is required. Both
+datasources point at H2 in `MODE=PostgreSQL` during tests.
 
 ---
 
@@ -193,42 +237,48 @@ The `traceId` is also returned to the caller in `X-Trace-Id` and embedded in any
 ```
 src/main/java/com/example/demo/
 ├── DemoApplication.java
+├── advice/                       # AuditFilter, GlobalExceptionHandler
 ├── config/
+│   ├── H2DataSourceConfig.java   # primary DataSource; @EnableJpaAuditing here
+│   ├── PgDataSourceConfig.java   # secondary DataSource for Postgres
+│   ├── S3Config.java             # AWS SDK v2 client wired to LocalStack
 │   ├── SecurityConfig.java
-│   ├── JpaAuditingConfig.java
-│   └── OpenApiConfig.java
+│   ├── OpenApiConfig.java
+│   └── DataSeeder.java           # seeds H2 on first boot (skipped in worker profile)
 ├── controller/
-│   ├── RoleController.java         # role-aware DTO controller
-│   ├── ProductController.java      # CRUD
-│   └── HealthController.java       # public + secure
-├── dto/
-│   ├── PersonDto.java              # base Person object
-│   ├── AdminDto.java
-│   ├── ManagerDto.java
-│   ├── UserDto.java
-│   └── ProductDto.java
-├── entity/Product.java
-├── repository/ProductRepository.java
-├── service/ProductService.java
-├── exception/
-│   ├── BaseAppException.java
-│   ├── RoleException.java
-│   ├── ProductException.java
-│   ├── HealthException.java
-│   └── ErrorResponse.java
-└── advice/
-    ├── GlobalExceptionHandler.java # @RestControllerAdvice
-    └── AuditFilter.java            # request audit
+│   ├── RoleController.java
+│   ├── ProductController.java          # /api/products            (H2)
+│   ├── ProductTemporalController.java  # /api/products-temporal   (Temporal/PG)
+│   ├── FileController.java             # /api/files               (S3)
+│   └── HealthController.java
+├── dto/                          # AdminDto, ManagerDto, ProductDto, UploadedFileDto, ...
+├── entity/
+│   ├── h2/Product.java           # H2-backed entity
+│   ├── h2/UploadedFile.java      # file metadata in H2
+│   └── pg/ProductPg.java         # Postgres-backed entity (managed by activities)
+├── exception/                    # BaseAppException + per-domain sub-types + ErrorResponse
+├── repository/
+│   ├── h2/...                    # bound to h2EntityManagerFactory
+│   └── pg/ProductPgRepository.java
+├── service/
+│   ├── ProductService.java       # H2 CRUD
+│   ├── ProductTemporalService.java # starts workflows + reads PG directly
+│   └── FileService.java          # multipart → S3 + JPA metadata
+└── temporal/
+    ├── config/TemporalConstants.java   # task queue + workflow id prefixes
+    ├── activity/
+    │   ├── ProductActivities.java     (interface)
+    │   └── ProductActivitiesImpl.java (Spring bean, @ActivityImpl)
+    └── workflow/
+        ├── CreateProductWorkflow{,Impl}.java   # @WorkflowImpl
+        ├── UpdateProductWorkflow{,Impl}.java
+        └── DeleteProductWorkflow{,Impl}.java
 
-src/test/java/com/example/demo/
-├── IntegrationTestBase.java        # shared MockMvc + Spring Security setup
-├── controller/
-│   ├── RoleControllerTest.java     # role → DTO shape assertions
-│   ├── ProductControllerTest.java  # CRUD + role gates + validation/404/409 envelope
-│   └── HealthControllerTest.java   # public vs secured + actuator gating
-├── advice/
-│   └── AuditFilterTest.java        # X-Trace-Id pass-through + body inclusion
-└── exception/
-    └── ExceptionHierarchyTest.java # plain JUnit on the exception types
+docker/
+├── postgres/init.sql             # creates temporal + temporal_visibility databases
+└── localstack/init-bucket.sh     # creates s3://demo-uploads on startup
+
+src/main/resources/
+├── application.yml               # default + worker profile in one file
+└── static/index.html             # console UI (Tailwind, vanilla JS)
 ```
-"# javareference2026" 

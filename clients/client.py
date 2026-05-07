@@ -69,6 +69,35 @@ class Client:
     def put(self, path, body, creds=None):        return self.request("PUT", path, creds, body)
     def delete(self, path, creds=None):           return self.request("DELETE", path, creds)
 
+    def upload(self, path: str, filename: str, content: bytes,
+               content_type: str = "application/octet-stream",
+               creds: Creds | None = None) -> tuple[int, Any]:
+        """Multipart/form-data POST. Stdlib only — assemble the body manually."""
+        boundary = "----springdemo" + base64.b16encode(content[:8] or b"00000000").decode()
+        crlf = b"\r\n"
+        parts = [
+            f"--{boundary}".encode(),
+            f'Content-Disposition: form-data; name="file"; filename="{filename}"'.encode(),
+            f"Content-Type: {content_type}".encode(),
+            b"",
+            content,
+            f"--{boundary}--".encode(),
+            b"",
+        ]
+        data = crlf.join(parts)
+        headers = {
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Accept": "application/json",
+        }
+        if creds:
+            headers["Authorization"] = creds.basic()
+        req = urllib.request.Request(f"{self.base}{path}", data=data, method="POST", headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return resp.status, _safe_json(resp.read())
+        except urllib.error.HTTPError as e:
+            return e.code, _safe_json(e.read())
+
 
 def _safe_json(raw: bytes) -> Any:
     if not raw:
@@ -128,6 +157,34 @@ def main() -> int:
                 MANAGER))
     show("manager DELETE /1 (expect 403)", *c.delete("/api/products/1", MANAGER))
     show("admin DELETE /4 (no content)",   *c.delete("/api/products/4", ADMIN))
+
+    banner("PRODUCTS-TEMPORAL · WORKFLOW WRITES, POSTGRES READS")
+    show("user lists from postgres", *c.get("/api/products-temporal", USER))
+    new = {"name": "Webcam 4K (via temporal)", "description": "USB-C, 60fps", "price": 199.0, "stock": 30}
+    print("       (the next call starts CreateProductWorkflow on product-task-queue and waits for the result)")
+    status, body = c.post("/api/products-temporal", new, MANAGER)
+    show("manager POST -> workflow", status, body)
+    if status < 300 and isinstance(body, dict) and body.get("id") is not None:
+        new_id = body["id"]
+        show("manager PUT  -> workflow",
+             *c.put(f"/api/products-temporal/{new_id}",
+                    {**new, "stock": 25}, MANAGER))
+        show("admin DELETE -> workflow", *c.delete(f"/api/products-temporal/{new_id}", ADMIN))
+
+    banner("PRODUCTS-TEMPORAL · WORKFLOW SURFACES PRODUCT_NOT_FOUND")
+    show("admin DELETE /9999 (expect 404)", *c.delete("/api/products-temporal/9999", ADMIN))
+
+    banner("FILES · UPLOAD TO LOCALSTACK S3")
+    payload = b"hello from spring-demo client\n" * 50
+    status, body = c.upload("/api/files/upload", "client-test.txt", payload, "text/plain", USER)
+    show("user uploads", status, body)
+    show("user lists files", *c.get("/api/files", USER))
+    if isinstance(body, dict) and body.get("id") is not None:
+        fid = body["id"]
+        show(f"user GETs file metadata + presigned url",
+             *c.get(f"/api/files/{fid}", USER))
+        show("user DELETE (expect 403)", *c.delete(f"/api/files/{fid}", USER))
+        show("admin DELETE",            *c.delete(f"/api/files/{fid}", ADMIN))
 
     banner("HEALTH CONTROLLER")
     show("admin /api/health/secure", *c.get("/api/health/secure", ADMIN))

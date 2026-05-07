@@ -1,17 +1,143 @@
+name: spring-demo
+
 services:
-  spring-demo:
+  # ---------- Postgres 17 (hosts both demodb and Temporal databases) ----------
+  postgres:
+    image: postgres:17-alpine
+    container_name: spring-demo-postgres
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: demodb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d demodb"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # ---------- Temporal server ----------
+  temporal:
+    image: temporalio/auto-setup:1.25
+    container_name: spring-demo-temporal
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: demo
+      POSTGRES_PWD: demo
+      POSTGRES_SEEDS: postgres
+      DBNAME: temporal
+      VISIBILITY_DBNAME: temporal_visibility
+    ports:
+      - "7233:7233"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "tctl --address temporal:7233 cluster health || temporal operator cluster health --address temporal:7233 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ---------- Temporal Web UI (http://localhost:8088) ----------
+  temporal-ui:
+    image: temporalio/ui:2.31.2
+    container_name: spring-demo-temporal-ui
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000,http://localhost:8080
+    ports:
+      - "8088:8080"
+    depends_on:
+      - temporal
+
+  # ---------- LocalStack (S3) ----------
+  localstack:
+    image: localstack/localstack:3.8
+    container_name: spring-demo-localstack
+    environment:
+      SERVICES: s3
+      DEFAULT_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      DEBUG: "0"
+    ports:
+      - "4566:4566"
+    volumes:
+      - ./docker/localstack/init-bucket.sh:/etc/localstack/init/ready.d/init-bucket.sh:ro
+      - localstack-data:/var/lib/localstack
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health | grep -q '\"s3\": \"\\(running\\|available\\)\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ---------- Spring Boot API ----------
+  spring-demo-api:
     build: .
     image: spring-demo:1.0.0
-    container_name: spring-demo
+    container_name: spring-demo-api
     ports:
       - "8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: default
-      JAVA_OPTS: "-XX:MaxRAMPercentage=75.0"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/demodb
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      TEMPORAL_TARGET: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      S3_ENDPOINT: http://localstack:4566
+      S3_ACCESS_KEY: test
+      S3_SECRET_KEY: test
+      S3_BUCKET: demo-uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      localstack:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 15s
       timeout: 3s
       retries: 5
-      start_period: 25s
+      start_period: 30s
+
+  # ---------- Spring Boot Worker (Temporal task processor) ----------
+  spring-demo-worker:
+    build: .
+    image: spring-demo:1.0.0
+    container_name: spring-demo-worker
+    environment:
+      SPRING_PROFILES_ACTIVE: worker
+      JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/demodb
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      TEMPORAL_TARGET: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      # Worker still needs S3 config wired but won't use it:
+      S3_ENDPOINT: http://localstack:4566
+      S3_ACCESS_KEY: test
+      S3_SECRET_KEY: test
+      S3_BUCKET: demo-uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  localstack-data:

@@ -27,4 +27,12 @@ public class ProductException extends BaseAppException {
             super(detail, HttpStatus.BAD_REQUEST, "PRODUCT_INVALID");
         }
     }
+
+    /** Wraps a Temporal workflow failure that didn't map to a more specific business error. */
+    public static class TemporalExecutionException extends ProductException {
+        public TemporalExecutionException(String detail) {
+            super("Workflow execution failed: " + detail,
+                    HttpStatus.INTERNAL_SERVER_ERROR, "TEMPORAL_EXECUTION_FAILED");
+        }
+    }
 }

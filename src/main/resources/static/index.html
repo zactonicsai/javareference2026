@@ -233,7 +233,9 @@
     <!-- TABS -->
     <nav class="flex border-b border-[color:var(--line)] mb-8 overflow-x-auto scrollbar">
         <div class="tab active" data-tab="role">role&nbsp;dto</div>
-        <div class="tab" data-tab="products">products&nbsp;crud</div>
+        <div class="tab" data-tab="products">products&nbsp;(h2)</div>
+        <div class="tab" data-tab="products-temporal">products&nbsp;(temporal/pg)</div>
+        <div class="tab" data-tab="files">files&nbsp;(s3)</div>
         <div class="tab" data-tab="health">health</div>
         <div class="tab" data-tab="actuator">actuator</div>
     </nav>
@@ -319,6 +321,145 @@
         <div class="panel">
             <div class="panel-header"><span>// last response</span></div>
             <pre class="code scrollbar" id="productsResult">// response will appear here</pre>
+        </div>
+    </section>
+
+    <!-- PRODUCTS TEMPORAL/POSTGRES TAB -->
+    <section data-panel="products-temporal" class="space-y-6 hidden">
+        <div class="panel">
+            <div class="panel-header">
+                <span>// dual-write architecture</span>
+                <span class="badge badge-info">CQRS-lite</span>
+            </div>
+            <div class="p-6 text-sm text-[color:var(--muted)] leading-relaxed">
+                Writes (POST/PUT/DELETE) start a Temporal workflow on the
+                <span class="accent">product-task-queue</span>. The workflow runs in the
+                <span class="accent">spring-demo-worker</span> container and calls an activity that persists to Postgres.
+                Reads (GET) bypass Temporal and query Postgres directly. The Temporal Web UI is at
+                <a href="http://localhost:8088" target="_blank" class="accent underline">http://localhost:8088</a>.
+            </div>
+        </div>
+        <div class="grid lg:grid-cols-5 gap-6">
+            <!-- form -->
+            <div class="panel lg:col-span-2 corner-tl">
+                <div class="panel-header">
+                    <span id="tFormTitle">// create product (temporal)</span>
+                    <span id="tFormBadge" class="badge badge-accent">POST</span>
+                </div>
+                <div class="p-6 space-y-4">
+                    <input type="hidden" id="t-prod-id" />
+                    <div>
+                        <label class="label">name</label>
+                        <input id="t-prod-name" class="input" placeholder="Wireless Mouse" />
+                    </div>
+                    <div>
+                        <label class="label">description</label>
+                        <textarea id="t-prod-description" class="textarea" rows="3" placeholder="Ergonomic 2.4GHz wireless mouse"></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="label">price</label>
+                            <input id="t-prod-price" type="number" step="0.01" class="input" placeholder="29.99" />
+                        </div>
+                        <div>
+                            <label class="label">stock</label>
+                            <input id="t-prod-stock" type="number" class="input" placeholder="100" />
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="tProdSubmit" class="btn btn-primary flex-1" onclick="submitTemporalProduct()">create via workflow</button>
+                        <button class="btn" onclick="resetTemporalProductForm()">reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- list -->
+            <div class="panel lg:col-span-3">
+                <div class="panel-header">
+                    <span>// products in postgres</span>
+                    <button class="btn !py-1 !px-3 text-[10px]" onclick="loadTemporalProducts()">↻ refresh</button>
+                </div>
+                <div class="overflow-x-auto scrollbar">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>id</th>
+                                <th>name</th>
+                                <th>price</th>
+                                <th>stock</th>
+                                <th class="text-right">actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="temporalProductsTbody">
+                            <tr><td colspan="5" class="text-center text-[color:var(--muted)] py-8">no data — connect &amp; refresh</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header"><span>// last response</span></div>
+            <pre class="code scrollbar" id="temporalProductsResult">// response will appear here</pre>
+        </div>
+    </section>
+
+    <!-- FILES TAB -->
+    <section data-panel="files" class="space-y-6 hidden">
+        <div class="panel">
+            <div class="panel-header">
+                <span>// s3 uploads</span>
+                <span class="badge badge-info">localstack</span>
+            </div>
+            <div class="p-6 text-sm text-[color:var(--muted)] leading-relaxed">
+                Multipart uploads are streamed to <span class="accent">s3://demo-uploads</span> on LocalStack
+                (port 4566). Metadata is persisted in H2. Any authenticated user can upload and list; only ADMIN can delete.
+            </div>
+        </div>
+        <div class="grid lg:grid-cols-5 gap-6">
+            <!-- upload form -->
+            <div class="panel lg:col-span-2 corner-tl">
+                <div class="panel-header">
+                    <span>// upload file</span>
+                    <span class="badge badge-accent">POST</span>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="label">file (max 10MB)</label>
+                        <input id="file-input" type="file" class="input !p-2" />
+                    </div>
+                    <button id="fileSubmit" class="btn btn-primary w-full" onclick="uploadFile()">upload to s3</button>
+                </div>
+            </div>
+
+            <!-- list -->
+            <div class="panel lg:col-span-3">
+                <div class="panel-header">
+                    <span>// uploaded files</span>
+                    <button class="btn !py-1 !px-3 text-[10px]" onclick="loadFiles()">↻ refresh</button>
+                </div>
+                <div class="overflow-x-auto scrollbar">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>id</th>
+                                <th>name</th>
+                                <th>size</th>
+                                <th>by</th>
+                                <th class="text-right">actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="filesTbody">
+                            <tr><td colspan="5" class="text-center text-[color:var(--muted)] py-8">no data — connect &amp; refresh</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header"><span>// last response</span></div>
+            <pre class="code scrollbar" id="filesResult">// response will appear here</pre>
         </div>
     </section>
 
@@ -438,9 +579,11 @@
         if (!user || !pass) { alert('user + password required'); return; }
         creds = { user, pass, basic: btoa(`${user}:${pass}`) };
         setAuthUI();
-        // verify by calling /api/role/me
+        // verify by calling /api/role/me + initial loads
         callRoleMe();
         loadProducts();
+        loadTemporalProducts();
+        loadFiles();
     }
     function logout() {
         creds = null;
@@ -528,6 +671,169 @@
         const r = await call(`/api/products/${id}`, { method: 'DELETE' });
         show('productsResult', r);
         loadProducts();
+    }
+
+    // ---------- products (temporal/postgres) ----------
+    async function loadTemporalProducts() {
+        const r = await call('/api/products-temporal');
+        show('temporalProductsResult', r);
+        const tbody = document.getElementById('temporalProductsTbody');
+        if (!r.ok || !Array.isArray(r.body)) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-[color:var(--warn)] py-8">${escapeHtml(pretty(r.body))}</td></tr>`;
+            return;
+        }
+        if (r.body.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-[color:var(--muted)] py-8">postgres is empty — create one to start a workflow</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = r.body.map(p => `
+            <tr>
+                <td class="text-[color:var(--muted)]">#${p.id}</td>
+                <td><div class="text-[color:var(--ink)] font-medium">${escapeHtml(p.name)}</div>
+                    <div class="text-[10px] text-[color:var(--muted)]">${escapeHtml(p.description || '')}</div></td>
+                <td class="accent">$${Number(p.price).toFixed(2)}</td>
+                <td>${p.stock}</td>
+                <td class="text-right">
+                    <button class="btn !py-1 !px-2 text-[10px]" onclick='editTemporalProduct(${JSON.stringify(p)})'>edit</button>
+                    <button class="btn btn-danger !py-1 !px-2 text-[10px]" onclick="deleteTemporalProduct(${p.id})">del</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+    function editTemporalProduct(p) {
+        document.getElementById('t-prod-id').value = p.id;
+        document.getElementById('t-prod-name').value = p.name;
+        document.getElementById('t-prod-description').value = p.description || '';
+        document.getElementById('t-prod-price').value = p.price;
+        document.getElementById('t-prod-stock').value = p.stock;
+        document.getElementById('tFormTitle').textContent = '// edit product (temporal) #' + p.id;
+        document.getElementById('tFormBadge').textContent = 'PUT';
+        document.getElementById('tProdSubmit').textContent = 'update via workflow';
+    }
+    function resetTemporalProductForm() {
+        document.getElementById('t-prod-id').value = '';
+        ['t-prod-name','t-prod-description','t-prod-price','t-prod-stock'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('tFormTitle').textContent = '// create product (temporal)';
+        document.getElementById('tFormBadge').textContent = 'POST';
+        document.getElementById('tProdSubmit').textContent = 'create via workflow';
+    }
+    async function submitTemporalProduct() {
+        const btn = document.getElementById('tProdSubmit');
+        const original = btn.textContent;
+        btn.textContent = 'running workflow…';
+        btn.disabled = true;
+        try {
+            const id = document.getElementById('t-prod-id').value;
+            const body = {
+                name: document.getElementById('t-prod-name').value.trim(),
+                description: document.getElementById('t-prod-description').value.trim(),
+                price: parseFloat(document.getElementById('t-prod-price').value),
+                stock: parseInt(document.getElementById('t-prod-stock').value, 10)
+            };
+            const url = id ? `/api/products-temporal/${id}` : '/api/products-temporal';
+            const method = id ? 'PUT' : 'POST';
+            const r = await call(url, { method, body: JSON.stringify(body) });
+            show('temporalProductsResult', r);
+            if (r.ok) { resetTemporalProductForm(); loadTemporalProducts(); }
+        } finally {
+            btn.disabled = false;
+            btn.textContent = original;
+        }
+    }
+    async function deleteTemporalProduct(id) {
+        if (!confirm('Delete product #' + id + ' via workflow?')) return;
+        const r = await call(`/api/products-temporal/${id}`, { method: 'DELETE' });
+        show('temporalProductsResult', r);
+        loadTemporalProducts();
+    }
+
+    // ---------- files (s3) ----------
+    function fmtBytes(n) {
+        if (n < 1024) return n + ' B';
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+        return (n / 1024 / 1024).toFixed(1) + ' MB';
+    }
+    async function loadFiles() {
+        const r = await call('/api/files');
+        show('filesResult', r);
+        const tbody = document.getElementById('filesTbody');
+        if (!r.ok || !Array.isArray(r.body)) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-[color:var(--warn)] py-8">${escapeHtml(pretty(r.body))}</td></tr>`;
+            return;
+        }
+        if (r.body.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-[color:var(--muted)] py-8">no uploads yet</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = r.body.map(f => `
+            <tr>
+                <td class="text-[color:var(--muted)]">#${f.id}</td>
+                <td><div class="text-[color:var(--ink)] font-medium">${escapeHtml(f.originalName)}</div>
+                    <div class="text-[10px] text-[color:var(--muted)]">${escapeHtml(f.contentType || '')}</div></td>
+                <td>${fmtBytes(f.sizeBytes)}</td>
+                <td class="text-[10px] text-[color:var(--muted)]">${escapeHtml(f.uploadedBy || '')}</td>
+                <td class="text-right">
+                    <button class="btn !py-1 !px-2 text-[10px]" onclick="downloadFile(${f.id})">↓</button>
+                    <button class="btn !py-1 !px-2 text-[10px]" onclick="presignFile(${f.id})">link</button>
+                    <button class="btn btn-danger !py-1 !px-2 text-[10px]" onclick="deleteFile(${f.id})">del</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+    async function uploadFile() {
+        if (!creds) { alert('login first'); return; }
+        const f = document.getElementById('file-input').files[0];
+        if (!f) { alert('pick a file'); return; }
+        const fd = new FormData(); fd.append('file', f);
+        const btn = document.getElementById('fileSubmit');
+        btn.disabled = true; btn.textContent = 'uploading…';
+        try {
+            const res = await fetch('/api/files/upload', {
+                method: 'POST',
+                headers: { 'Authorization': 'Basic ' + creds.basic },
+                body: fd
+            });
+            const text = await res.text();
+            let body; try { body = JSON.parse(text); } catch { body = text; }
+            show('filesResult', { status: res.status, ok: res.ok, body });
+            if (res.ok) {
+                document.getElementById('file-input').value = '';
+                loadFiles();
+            }
+        } finally {
+            btn.disabled = false; btn.textContent = 'upload to s3';
+        }
+    }
+    async function downloadFile(id) {
+        if (!creds) { alert('login first'); return; }
+        const res = await fetch(`/api/files/${id}/download`, {
+            headers: { 'Authorization': 'Basic ' + creds.basic }
+        });
+        if (!res.ok) {
+            show('filesResult', { status: res.status, ok: false, body: await res.text() });
+            return;
+        }
+        const cd = res.headers.get('Content-Disposition') || '';
+        const m = /filename="([^"]+)"/.exec(cd);
+        const name = m ? m[1] : ('file-' + id);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+    }
+    async function presignFile(id) {
+        const r = await call(`/api/files/${id}`);
+        show('filesResult', r);
+        if (r.ok && r.body && r.body.downloadUrl) {
+            window.open(r.body.downloadUrl, '_blank');
+        }
+    }
+    async function deleteFile(id) {
+        if (!confirm('Delete file #' + id + '?')) return;
+        const r = await call(`/api/files/${id}`, { method: 'DELETE' });
+        show('filesResult', r);
+        loadFiles();
     }
 
     // ---------- health ----------

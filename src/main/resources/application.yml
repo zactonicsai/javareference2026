@@ -2,17 +2,30 @@ spring:
   application:
     name: spring-demo
 
+  # Spring Boot 3.x: disable JPA's default behavior of taking over the
+  # primary DataSource — we manage two of them manually below.
   datasource:
-    url: jdbc:h2:mem:demodb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
+    h2:
+      url: jdbc:h2:mem:demodb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+      username: sa
+      password:
+      driver-class-name: org.h2.Driver
+      hikari:
+        maximum-pool-size: 5
+    postgres:
+      url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/demodb}
+      username: ${POSTGRES_USER:demo}
+      password: ${POSTGRES_PASSWORD:demo}
+      driver-class-name: org.postgresql.Driver
+      hikari:
+        maximum-pool-size: 10
+        connection-timeout: 5000
 
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: update
     show-sql: false
-    defer-datasource-initialization: true
     properties:
       hibernate:
         format_sql: true
@@ -22,9 +35,11 @@ spring:
       enabled: true
       path: /h2-console
 
-  sql:
-    init:
-      mode: always
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
 
   mvc:
     throw-exception-if-no-handler-found: true
@@ -32,14 +47,36 @@ spring:
     resources:
       add-mappings: true
 
+  # Temporal Spring Boot starter
+  # The connection target is "local" by default which connects to localhost:7233.
+  # Override TEMPORAL_TARGET to point at the broker host (e.g. temporal:7233 inside docker-compose).
+  temporal:
+    connection:
+      target: ${TEMPORAL_TARGET:local}
+    namespace: ${TEMPORAL_NAMESPACE:default}
+    # Worker is OFF by default. The 'worker' profile (worker container) turns it on.
+    workers-auto-discovery:
+      packages: []
+
 server:
   port: 8080
   error:
     include-message: always
     include-binding-errors: always
 
-# Actuator: expose health and info publicly (status only),
-# expose more details when authorized (handled in SecurityConfig)
+# App-specific
+app:
+  s3:
+    endpoint: ${S3_ENDPOINT:http://localhost:4566}
+    region: ${S3_REGION:us-east-1}
+    access-key: ${S3_ACCESS_KEY:test}
+    secret-key: ${S3_SECRET_KEY:test}
+    bucket: ${S3_BUCKET:demo-uploads}
+    path-style: true
+  upload:
+    max-bytes: 10485760
+
+# Actuator: public health/info, admin for the rest
 management:
   endpoints:
     web:
@@ -60,15 +97,12 @@ management:
       enabled: true
     build:
       enabled: true
-    git:
-      enabled: false
 
 info:
   app:
     name: spring-demo
-    description: Spring Boot 3.5.13 demo with role-based security and CRUD
+    description: Spring Boot 3.5.13 demo with security, dual-store CRUD, Temporal and S3
     version: 1.0.0
-    contact: demo@example.com
 
 springdoc:
   swagger-ui:
@@ -82,6 +116,31 @@ logging:
   level:
     root: INFO
     com.example.demo: DEBUG
+    io.temporal: INFO
     org.springframework.security: INFO
   pattern:
     console: "%d{HH:mm:ss.SSS} %-5level [%X{traceId:-}] [%X{user:-}] %logger{36} - %msg%n"
+
+---
+# Worker profile: no HTTP, register Temporal workflow + activity beans
+spring:
+  config:
+    activate:
+      on-profile: worker
+  main:
+    web-application-type: none
+  temporal:
+    workers-auto-discovery:
+      packages:
+        - com.example.demo.temporal.workflow
+        - com.example.demo.temporal.activity
+    workers:
+      - task-queue: product-task-queue
+        name: product-worker
+
+# Disable web/security autoconfig pieces that aren't useful in a worker-only deployment
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info

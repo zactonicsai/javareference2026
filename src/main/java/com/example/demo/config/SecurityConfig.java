@@ -104,6 +104,15 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/products/**").hasAnyRole("MANAGER", "ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/products/**").hasAnyRole("MANAGER", "ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/products/**").hasRole("ADMIN")
+                // Same rules for the Temporal/Postgres CRUD
+                .requestMatchers(HttpMethod.GET, "/api/products-temporal/**").hasAnyRole("USER", "MANAGER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/products-temporal/**").hasAnyRole("MANAGER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/products-temporal/**").hasAnyRole("MANAGER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/products-temporal/**").hasRole("ADMIN")
+                // File upload — any authenticated user can upload/read; only ADMIN can delete
+                .requestMatchers(HttpMethod.GET, "/api/files/**").hasAnyRole("USER", "MANAGER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/files/**").hasAnyRole("USER", "MANAGER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/files/**").hasRole("ADMIN")
                 // Health controller
                 .requestMatchers("/api/health/public").permitAll()
                 .requestMatchers("/api/health/secure").authenticated()

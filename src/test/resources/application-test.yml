@@ -1,20 +1,40 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:demodb-test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
+    h2:
+      url: jdbc:h2:mem:demodb-test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+      username: sa
+      password:
+      driver-class-name: org.h2.Driver
+    # Tests use a separate H2 instance in PG-compat mode in place of real Postgres
+    postgres:
+      url: jdbc:h2:mem:demodb-test-pg;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+      username: sa
+      password:
+      driver-class-name: org.h2.Driver
 
   jpa:
     hibernate:
       ddl-auto: create-drop
-    defer-datasource-initialization: true
 
-  sql:
-    init:
-      mode: always
+  # Temporal Spring Boot starter ships an in-process test server.
+  # Enable it so the application context can boot without a real Temporal cluster.
+  temporal:
+    test-server:
+      enabled: true
+    start-workers: false
+
+# Don't try to talk to LocalStack during tests
+app:
+  s3:
+    endpoint: http://localhost:0
+    bucket: test-bucket
+    skip-bucket-check: true
+  pg:
+    hibernate:
+      ddl-auto: create-drop
 
 logging:
   level:
     com.example.demo: INFO
     org.springframework.security: WARN
+    io.temporal: WARN

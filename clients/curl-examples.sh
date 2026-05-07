@@ -88,6 +88,57 @@ post-invalid-product() {
     "$HOST/api/products" | jq .
 }
 
+# ---------- products via Temporal/Postgres ----------
+list-temporal-products() {
+  hr "GET /api/products-temporal  (reads from Postgres)"
+  curl -sS -u "$USER" "$HOST/api/products-temporal" | jq .
+}
+create-temporal-product() {
+  hr "POST /api/products-temporal  (CreateProductWorkflow → activity → Postgres)"
+  curl -sS -u "$MANAGER" -H 'Content-Type: application/json' \
+    -d '{"name":"Webcam HD","description":"1080p webcam","price":59.99,"stock":40}' \
+    "$HOST/api/products-temporal" | jq .
+}
+update-temporal-product() {
+  hr "PUT /api/products-temporal/1  (UpdateProductWorkflow)"
+  curl -sS -u "$MANAGER" -H 'Content-Type: application/json' \
+    -d '{"name":"Webcam HD Pro","description":"4K webcam","price":129.99,"stock":15}' \
+    "$HOST/api/products-temporal/1" | jq .
+}
+delete-temporal-product() {
+  hr "DELETE /api/products-temporal/1  (DeleteProductWorkflow, ADMIN only)"
+  curl -sS -u "$ADMIN" -X DELETE -i "$HOST/api/products-temporal/1"
+}
+delete-missing-temporal-product() {
+  hr "DELETE /api/products-temporal/9999  (workflow surfaces PRODUCT_NOT_FOUND)"
+  curl -sS -u "$ADMIN" -X DELETE "$HOST/api/products-temporal/9999" | jq .
+}
+
+# ---------- file uploads (LocalStack S3) ----------
+upload-file() {
+  hr "POST /api/files/upload  (multipart, any auth user)"
+  local f="${1:-/tmp/spring-demo-test.txt}"
+  echo "spring-demo upload test $(date)" > "$f"
+  curl -sS -u "$USER" -F "file=@$f" "$HOST/api/files/upload" | jq .
+}
+list-files() {
+  hr "GET /api/files"
+  curl -sS -u "$USER" "$HOST/api/files" | jq .
+}
+file-with-presigned-url() {
+  hr "GET /api/files/1  (returns metadata + 15-min presigned download URL)"
+  curl -sS -u "$USER" "$HOST/api/files/1" | jq .
+}
+download-file() {
+  hr "GET /api/files/1/download  (streams content)"
+  curl -sS -u "$USER" -OJ "$HOST/api/files/1/download"
+  ls -la spring-demo-test.txt 2>/dev/null || true
+}
+delete-file-forbidden-as-user() {
+  hr "DELETE /api/files/1  as user (expected 403)"
+  curl -sS -u "$USER" -X DELETE -i "$HOST/api/files/1"
+}
+
 # ---------- health ----------
 health-secure() {
   hr "GET /api/health/secure  as admin"
@@ -107,6 +158,9 @@ DEMOS=(
   update-product
   delete-product-forbidden
   get-missing-product post-invalid-product
+  list-temporal-products create-temporal-product
+  upload-file list-files file-with-presigned-url
+  delete-file-forbidden-as-user
   health-secure actuator-info actuator-metrics-as-admin
 )
 
