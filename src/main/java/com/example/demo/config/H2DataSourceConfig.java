@@ -8,7 +8,6 @@ import org.springframework.boot.orm.jpa.EntityManagerFactoryBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
@@ -21,10 +20,14 @@ import javax.sql.DataSource;
  *
  * Repositories under com.example.demo.repository.h2 are bound to this EntityManagerFactory.
  *
- * @EnableJpaAuditing is declared here so @CreatedDate / @LastModifiedDate work for H2 entities.
+ * NOTE: @EnableJpaAuditing is intentionally NOT declared here. It lives on a
+ * dedicated, otherwise-empty @Configuration class (JpaAuditingConfig). Putting
+ * @EnableJpaAuditing on the same class as @EnableJpaRepositories in a multi-
+ * datasource setup can cause the auditing registrar to register the
+ * 'jpaAuditingHandler' bean twice in Spring Data 3.5.x, which fails with
+ * BeanDefinitionOverrideException because Spring Boot disables override by default.
  */
 @Configuration
-@EnableJpaAuditing(modifyOnCreate = true)
 @EnableJpaRepositories(
         basePackages = "com.example.demo.repository.h2",
         entityManagerFactoryRef = "h2EntityManagerFactory",

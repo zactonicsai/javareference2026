@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
@@ -27,6 +28,7 @@ import java.time.Duration;
  */
 @Slf4j
 @Configuration
+@Profile("!worker")
 public class S3Config {
 
     @Value("${app.s3.endpoint:http://localhost:4566}")

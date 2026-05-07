@@ -30,6 +30,17 @@ spring:
       hibernate:
         format_sql: true
 
+  # Disable Spring Boot's auto SQL init (schema.sql / data.sql).
+  # Seeding is owned by DataSeeder.java which runs as an ApplicationRunner
+  # AFTER Hibernate has created the schema. data.sql, in contrast, runs at
+  # DataSource init time — i.e. before tables exist — and breaks startup with
+  # 'Table "PRODUCTS" not found'. Setting this to 'never' guarantees no SQL
+  # script will be auto-executed, even if a script accidentally lands on the
+  # classpath in a future build.
+  sql:
+    init:
+      mode: never
+
   h2:
     console:
       enabled: true

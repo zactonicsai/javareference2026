@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.core.Authentication;
@@ -29,6 +30,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
+@Profile("!worker")
 @Order(Ordered.LOWEST_PRECEDENCE)
 public class AuditFilter extends OncePerRequestFilter {
 

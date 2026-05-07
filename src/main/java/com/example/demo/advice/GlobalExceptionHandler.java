@@ -8,6 +8,7 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -34,6 +35,7 @@ import java.util.List;
  */
 @Slf4j
 @RestControllerAdvice
+@Profile("!worker")
 public class GlobalExceptionHandler {
 
     /** All custom application exceptions inherit BaseAppException. */
