@@ -1,0 +1,1 @@
+{"name":"secure-groups-ui","version":"1.0.0","private":true,"scripts":{"build:css":"tailwindcss -i frontend/input.css -o src/main/resources/static/assets/app.css --minify"},"devDependencies":{"tailwindcss":"4.3.5","@tailwindcss/cli":"4.3.5"}}

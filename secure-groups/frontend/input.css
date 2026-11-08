@@ -1,0 +1,8 @@
+@import "tailwindcss";
+@source "../src/main/resources/static";
+@layer base {
+  [hidden] { display: none !important; }
+  button, a, input { outline-offset: 4px; }
+  button { cursor: pointer; }
+  dialog::backdrop { background: rgb(15 23 42 / .55); }
+}

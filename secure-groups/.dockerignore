@@ -1,0 +1,7 @@
+.git
+node_modules
+target
+.env
+*.p12
+*.pem
+*.zip

@@ -1,0 +1,7 @@
+# Explicit loopback-only HTTP development profile. Never deploy this profile.
+server:
+  address: 127.0.0.1
+  servlet:
+    session:
+      cookie:
+        secure: false

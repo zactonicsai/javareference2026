@@ -1,0 +1,17 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${PORT:8080}
+  servlet:
+    session:
+      timeout: 15m
+      tracking-modes: cookie
+      cookie:
+        http-only: true
+        secure: true
+        same-site: strict
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  application:
+    name: secure-groups
