@@ -3,14 +3,18 @@ set -euo pipefail
 project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$project_dir"
 # Prompt silently to keep passwords out of shell history. Exported values also work.
-for key in ADMIN_PASSWORD USER_PASSWORD USER2_PASSWORD; do
-  if [[ -z "${!key:-}" ]]; then
-    read -r -s -p "$key (14+ characters, max 72 UTF-8 bytes): " value
-    printf '\n'
-    printf -v "$key" '%s' "$value"
-    export "$key"
-  fi
-done
+export ADMIN_PASSWORD="SuperSecretAdminPassword123!"
+export USER_PASSWORD="SuperSecretAdminPassword123!"
+export USER2_PASSWORD="SuperSecretAdminPassword123!"
+#for key in ADMIN_PASSWORD USER_PASSWORD USER2_PASSWORD; do
+#   if [[ -z "${!key:-}" ]]; then
+#     read -r -s -p "$key (14+ characters, max 72 UTF-8 bytes): " value
+#     printf '\n'
+#     printf -v "$key" '%s' "$value"
+#     export "$key"
+#     echo $key
+#   fi
+# done
 npm install --no-audit --no-fund
 npm run build:css
 mvn --batch-mode --no-transfer-progress clean verify
