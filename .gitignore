@@ -15,3 +15,5 @@ Thumbs.db
 
 # Logs
 *.log
+secure-groups/secure-groups.tar
+secure-groups/spring-demo.tar
