@@ -1,0 +1,38 @@
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${PORT:8080}
+  servlet:
+    session:
+      timeout: 15m
+      tracking-modes: cookie
+      cookie:
+        http-only: true
+        secure: true
+        same-site: strict
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  application:
+    name: secure-groups
+# Helm CLI integration. Directories are reference paths: charts and values files
+# are resolved relative to charts-dir / values-dir (override with the env vars).
+helm:
+  executable: ${HELM_EXECUTABLE:helm}
+  kubeconfig-path: ${HELM_KUBECONFIG:}      # empty = Helm's default cluster context
+  timeout-seconds: 90
+  charts-dir: ${HELM_CHARTS_DIR:./helm/charts}
+  values-dir: ${HELM_VALUES_DIR:./helm/values}
+  releases:
+    linux:
+      release-name: linux
+      chart: linux                # -> <charts-dir>/linux
+      namespace: ${HELM_LINUX_NAMESPACE:linux}
+      values-file: linux.yaml     # -> <values-dir>/linux.yaml
+# kubectl CLI integration: status, logs, terminal commands and expose for the Linux release.
+kubectl:
+  executable: ${KUBECTL_EXECUTABLE:kubectl}
+  kubeconfig-path: ${HELM_KUBECONFIG:}      # same cluster credentials as Helm
+  timeout-seconds: 30                       # also the limit for one terminal command
+  expose-type: ${LINUX_EXPOSE_TYPE:NodePort}   # NodePort or LoadBalancer
+  log-tail-lines: 200

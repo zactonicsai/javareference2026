@@ -1,0 +1,6 @@
+apiVersion: v2
+name: linux
+description: Runs a long-lived Linux container
+type: application
+version: 0.1.0
+appVersion: "24.04"

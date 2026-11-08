@@ -1,0 +1,8 @@
+# Direct HTTPS, using a PKCS12 certificate supplied outside the repository.
+server:
+  port: ${PORT:8443}
+  ssl:
+    enabled: true
+    key-store: ${TLS_KEY_STORE}
+    key-store-password: ${TLS_KEY_STORE_PASSWORD}
+    key-store-type: PKCS12

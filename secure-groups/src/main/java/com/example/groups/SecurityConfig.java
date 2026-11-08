@@ -41,7 +41,7 @@ public class SecurityConfig {
             .requestMatchers("/api/groups/dev1/**").hasAuthority("GROUP_dev1")
             .requestMatchers("/api/groups/dev2/**").hasAuthority("GROUP_dev2")
             .requestMatchers("/api/admin/**").hasRole("ADMIN")
-            .requestMatchers("/", "/index.html", "/api/session").authenticated()
+            .requestMatchers("/", "/index.html", "/api/session", "/api/linux/**").authenticated()
             .anyRequest().denyAll());
         // CSRF stays enabled with the default session-backed token repository.
         http.formLogin(login -> login.loginPage("/login.html").loginProcessingUrl("/login")
