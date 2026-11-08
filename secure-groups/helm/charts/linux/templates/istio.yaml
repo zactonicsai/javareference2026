@@ -1,0 +1,47 @@
+{{- /* Istio route for SSH. Skipped automatically on clusters without Istio so Start still works there. */ -}}
+{{- $hasV1 := .Capabilities.APIVersions.Has "networking.istio.io/v1" -}}
+{{- $hasBeta := .Capabilities.APIVersions.Has "networking.istio.io/v1beta1" -}}
+{{- if and .Values.istio.enabled .Values.ssh.enabled (or $hasV1 $hasBeta) }}
+{{- $apiVersion := ternary "networking.istio.io/v1" "networking.istio.io/v1beta1" $hasV1 }}
+{{- $gateway := default (printf "%s-gateway" .Release.Name) .Values.istio.gateway.name }}
+{{- if .Values.istio.gateway.create }}
+apiVersion: {{ $apiVersion }}
+kind: Gateway
+metadata:
+  name: {{ $gateway }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    {{- toYaml .Values.istio.gateway.selector | nindent 4 }}
+  servers:
+    - port:
+        number: {{ .Values.istio.gateway.port }}
+        name: tcp-ssh
+        protocol: TCP
+      hosts:
+        - {{ .Values.istio.host | quote }}
+---
+{{- end }}
+apiVersion: {{ $apiVersion }}
+kind: VirtualService
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  hosts:
+    - {{ .Values.istio.host | quote }}
+  gateways:
+    - {{ $gateway }}
+  tcp:
+    - match:
+        - port: {{ .Values.istio.gateway.port }}
+      route:
+        - destination:
+            host: {{ .Release.Name }}.{{ .Release.Namespace }}.svc.cluster.local
+            port:
+              number: {{ .Values.ssh.port }}
+{{- end }}

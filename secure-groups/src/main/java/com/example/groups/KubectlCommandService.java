@@ -19,6 +19,11 @@ public class KubectlCommandService {
         return runKubectl("get", "pods,services", "-n", namespace, "-l", selector, "-o", "json");
     }
 
+    /** Istio VirtualServices matching a label selector, as JSON on stdout. Fails on clusters without Istio. */
+    public CliRunner.Result getVirtualServices(String namespace, String selector) {
+        return runKubectl("get", "virtualservices.networking.istio.io", "-n", namespace, "-l", selector, "-o", "json");
+    }
+
     /** Runs a shell command inside the pod. The command is interpreted by the pod's shell, not on this server. */
     public CliRunner.Result exec(String namespace, String pod, String command) {
         return runKubectl("exec", "-n", namespace, pod, "--", "sh", "-c", command);

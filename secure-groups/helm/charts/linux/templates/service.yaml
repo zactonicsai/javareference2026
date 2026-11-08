@@ -10,6 +10,12 @@ spec:
   selector:
     app.kubernetes.io/instance: {{ .Release.Name }}
   ports:
-    - name: app
+    # Port names carry the protocol prefix Istio uses for routing (http-, tcp-).
+    - name: http-app
       port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.port }}
+    {{- if .Values.ssh.enabled }}
+    - name: tcp-ssh
+      port: {{ .Values.ssh.port }}
+      targetPort: {{ .Values.ssh.port }}
+    {{- end }}

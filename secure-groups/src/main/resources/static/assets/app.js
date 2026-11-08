@@ -62,6 +62,9 @@ function renderStatus(status) {
   const lines = status.pods.map(pod => `Pod ${pod.name}: ${pod.terminating ? "Terminating" : pod.reason || pod.phase}, ${pod.ready ? "ready" : "not ready"}, restarts ${pod.restarts}${pod.ip ? `, IP ${pod.ip}` : ""}${pod.node ? `, node ${pod.node}` : ""}`);
   const service = status.service;
   if (service) lines.push(`Service ${service.name}: ${service.type}, cluster IP ${service.clusterIp || "none"}, ports ${service.ports.join(", ") || "none"}${service.externalAddresses.length ? `, external ${service.externalAddresses.join(", ")}` : ""}`);
+  for (const route of status.virtualServices) lines.push(`Istio VirtualService ${route.name}: hosts ${route.hosts.join(", ") || "none"}, gateways ${route.gateways.join(", ") || "none"}, routes ${route.routes.join("; ") || "none"}`);
+  if (service && !status.virtualServices.length) lines.push("Istio VirtualService: none (created on Start when the cluster has Istio installed)");
+  for (const access of status.sshAccess) lines.push(`SSH — ${access}`);
   $("#linux-details").textContent = lines.join("\n");
   const hasPod = status.pods.some(pod => !pod.terminating);
   $("#linux-stop").disabled = status.state === "stopped";

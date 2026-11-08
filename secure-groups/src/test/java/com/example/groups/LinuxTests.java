@@ -32,13 +32,19 @@ class LinuxTests {
     static final String FAKE_KUBECTL = """
         #!/bin/sh
         if [ "$1" != get ]; then echo "ARGS: $*"; exit 0; fi
+        if [ "$2" = virtualservices.networking.istio.io ]; then cat <<'JSON'
+        {"kind":"List","items":[{"kind":"VirtualService","metadata":{"name":"linux"},"spec":{"hosts":["*"],"gateways":["linux-gateway"],
+          "tcp":[{"match":[{"port":2222}],"route":[{"destination":{"host":"linux.linux.svc.cluster.local","port":{"number":22}}}]}]}}]}
+        JSON
+        exit 0; fi
         echo "warning on stderr must not break JSON parsing" >&2
         cat <<'JSON'
         {"kind":"List","items":[
          {"kind":"Pod","metadata":{"name":"linux-abc"},"spec":{"nodeName":"node-1"},
           "status":{"phase":"Running","podIP":"10.0.0.5","containerStatuses":[{"ready":true,"restartCount":0,"state":{"running":{}}}]}},
-         {"kind":"Service","metadata":{"name":"linux"},
-          "spec":{"type":"NodePort","clusterIP":"10.1.0.9","ports":[{"port":8080,"targetPort":8080,"nodePort":30080}]}}]}
+         {"kind":"Service","metadata":{"name":"linux","namespace":"linux"},
+          "spec":{"type":"NodePort","clusterIP":"10.1.0.9","ports":[{"name":"http-app","port":8080,"targetPort":8080,"nodePort":30080},
+            {"name":"tcp-ssh","port":22,"targetPort":22,"nodePort":30022}]}}]}
         JSON
         """;
 
@@ -75,7 +81,10 @@ class LinuxTests {
             .andExpect(jsonPath("$.pods[0].name").value("linux-abc")).andExpect(jsonPath("$.pods[0].ready").value(true))
             .andExpect(jsonPath("$.service.type").value("NodePort"))
             .andExpect(jsonPath("$.service.ports[0]").value(containsString("node port 30080")))
-            .andExpect(jsonPath("$.steps[4].done").value(true));
+            .andExpect(jsonPath("$.steps[4].done").value(true))
+            .andExpect(jsonPath("$.virtualServices[0].routes[0]").value("tcp 2222 -> linux.linux.svc.cluster.local:22"))
+            .andExpect(jsonPath("$.sshAccess").value(hasItems(containsString("-p 30022"), containsString("-p 2222"),
+                containsString("root@linux.linux.svc.cluster.local -p 22"))));
     }
     @Test void terminalLogsInfoAndExposeCallKubectl() throws Exception {
         mvc.perform(post("/api/linux/exec").with(csrf()).with(member()).contentType(MediaType.APPLICATION_JSON).content("{\"command\":\"uname -a\"}"))

@@ -1,0 +1,2 @@
+# Environment overrides for the linux release (merged over the chart's values.yaml).
+replicaCount: 1

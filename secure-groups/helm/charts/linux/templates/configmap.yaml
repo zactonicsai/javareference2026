@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  authorized_keys: |
+    {{- .Values.ssh.authorizedKeys | trim | nindent 4 }}
+  start.sh: |
+    #!/bin/sh
+    echo "Linux container started at $(date)"
+    uname -a
+    {{- if .Values.ssh.enabled }}
+    echo "Installing the SSH server..."
+    export DEBIAN_FRONTEND=noninteractive
+    if apt-get update -qq && apt-get install -y -qq --no-install-recommends openssh-server >/dev/null; then
+      mkdir -p /run/sshd /root/.ssh
+      chmod 700 /root/.ssh
+      cp /opt/linux/authorized_keys /root/.ssh/authorized_keys
+      chmod 600 /root/.ssh/authorized_keys
+      ssh-keygen -A
+      if [ ! -s /root/.ssh/authorized_keys ]; then
+        echo "WARNING: no SSH public key is configured (ssh.authorizedKeys), so nobody can log in yet."
+      fi
+      echo "SSH server listening on port {{ .Values.ssh.port }} (key login only, user root)."
+      # -D keeps sshd in the foreground as the container's main process; -e sends its log to the pod log.
+      exec /usr/sbin/sshd -D -e -p {{ .Values.ssh.port }} -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no -o PermitRootLogin=prohibit-password
+    fi
+    echo "ERROR: the SSH server could not be installed (does the pod have internet access?). Continuing without SSH."
+    {{- end }}
+    exec sleep infinity

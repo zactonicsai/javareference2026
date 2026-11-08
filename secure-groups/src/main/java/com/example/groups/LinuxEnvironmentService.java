@@ -26,8 +26,10 @@ public class LinuxEnvironmentService {
     public record Step(String label, boolean done) {}
     public record Pod(String name, String phase, boolean ready, int restarts, String reason, String ip, String node, boolean terminating) {}
     public record ServiceInfo(String name, String type, String clusterIp, List<String> ports, List<String> externalAddresses) {}
-    /** state is one of: stopped, starting, running, stopping, error. */
-    public record Status(String state, String message, List<Step> steps, List<Pod> pods, ServiceInfo service, boolean exposed) {}
+    public record VirtualServiceInfo(String name, List<String> hosts, List<String> gateways, List<String> routes) {}
+    /** state is one of: stopped, starting, running, stopping, error. sshAccess lists ready-to-copy ssh commands. */
+    public record Status(String state, String message, List<Step> steps, List<Pod> pods, ServiceInfo service, boolean exposed,
+                         List<VirtualServiceInfo> virtualServices, List<String> sshAccess) {}
 
     public CliRunner.Result start() { return helm.startRelease(RELEASE_KEY); }
 
@@ -44,8 +46,10 @@ public class LinuxEnvironmentService {
         HelmProperties.Release release = helm.release(RELEASE_KEY);
         CliRunner.Result result = kubectl.getPodsAndServices(release.namespace(), selector(release));
         if (!result.ok()) throw new CliRunner.CliException("kubectl get failed:\n" + result.output());
+        // Istio is optional: without its CRDs this call fails and the status simply lists no VirtualService.
+        CliRunner.Result istio = kubectl.getVirtualServices(release.namespace(), selector(release));
         try {
-            return parseStatus(mapper.readTree(result.stdout()));
+            return parseStatus(mapper.readTree(result.stdout()), istio.ok() ? mapper.readTree(istio.stdout()) : null);
         } catch (JsonProcessingException e) {
             throw new CliRunner.CliException("kubectl returned output that is not JSON", e);
         }
@@ -75,14 +79,18 @@ public class LinuxEnvironmentService {
             .orElseThrow(() -> new CliRunner.NoPodException("No Linux pod exists yet. Press Start first."));
     }
 
-    /** Turns "kubectl get pods,services -o json" into the progress summary shown in the browser. */
-    static Status parseStatus(JsonNode root) {
+    /** Turns "kubectl get ... -o json" (pods and services, plus VirtualServices if Istio is present) into the summary shown in the browser. */
+    static Status parseStatus(JsonNode root, JsonNode istioRoot) {
         List<Pod> pods = new ArrayList<>();
         ServiceInfo service = null;
+        List<VirtualServiceInfo> virtualServices = new ArrayList<>();
+        List<String> sshAccess = new ArrayList<>();
+        if (istioRoot != null)
+            for (JsonNode item : istioRoot.path("items")) virtualServices.add(parseVirtualService(item, sshAccess));
         for (JsonNode item : root.path("items")) {
             String kind = item.path("kind").asText();
             if (kind.equals("Pod")) pods.add(parsePod(item));
-            else if (kind.equals("Service")) service = parseService(item);
+            else if (kind.equals("Service")) { service = parseService(item); addSshAccess(item, sshAccess); }
         }
         List<Pod> live = pods.stream().filter(pod -> !pod.terminating()).toList();
         boolean scheduled = live.stream().anyMatch(pod -> !pod.node().isEmpty());
@@ -116,7 +124,7 @@ public class LinuxEnvironmentService {
             state = "stopped";
             message = "Linux is not running. Press Start to deploy it.";
         }
-        return new Status(state, message, steps, pods, service, exposed);
+        return new Status(state, message, steps, pods, service, exposed, virtualServices, sshAccess);
     }
 
     private static Pod parsePod(JsonNode item) {
@@ -143,7 +151,7 @@ public class LinuxEnvironmentService {
         JsonNode spec = item.path("spec");
         List<String> ports = new ArrayList<>();
         for (JsonNode port : spec.path("ports")) {
-            String text = port.path("port").asText() + " -> " + port.path("targetPort").asText();
+            String text = (port.path("name").asText("") + " " + port.path("port").asText() + " -> " + port.path("targetPort").asText()).strip();
             if (port.path("nodePort").asInt(0) > 0) text += " (node port " + port.path("nodePort").asInt() + ")";
             ports.add(text);
         }
@@ -154,5 +162,39 @@ public class LinuxEnvironmentService {
         }
         return new ServiceInfo(item.path("metadata").path("name").asText(), spec.path("type").asText("ClusterIP"),
             spec.path("clusterIP").asText(""), ports, external);
+    }
+
+    /** Adds ready-to-copy ssh commands for the service's SSH port (the one whose name contains "ssh"). */
+    private static void addSshAccess(JsonNode service, List<String> sshAccess) {
+        for (JsonNode port : service.path("spec").path("ports")) {
+            if (!port.path("name").asText("").contains("ssh")) continue;
+            int number = port.path("port").asInt(), nodePort = port.path("nodePort").asInt(0);
+            for (JsonNode ingress : service.path("status").path("loadBalancer").path("ingress")) {
+                String address = ingress.path("ip").asText(ingress.path("hostname").asText(""));
+                if (!address.isEmpty()) sshAccess.add("From outside (load balancer): ssh root@" + address + " -p " + number);
+            }
+            if (nodePort > 0) sshAccess.add("From outside (node port): ssh root@<node-address> -p " + nodePort);
+            sshAccess.add("Inside the cluster: ssh root@" + service.path("metadata").path("name").asText() + "."
+                + service.path("metadata").path("namespace").asText("default") + ".svc.cluster.local -p " + number);
+        }
+    }
+
+    private static VirtualServiceInfo parseVirtualService(JsonNode item, List<String> sshAccess) {
+        JsonNode spec = item.path("spec");
+        List<String> hosts = new ArrayList<>(), gateways = new ArrayList<>(), routes = new ArrayList<>();
+        for (JsonNode host : spec.path("hosts")) hosts.add(host.asText());
+        for (JsonNode gateway : spec.path("gateways")) gateways.add(gateway.asText());
+        for (JsonNode rule : spec.path("tcp")) {
+            String gatewayPort = rule.path("match").path(0).path("port").asText("any");
+            for (JsonNode route : rule.path("route")) {
+                JsonNode destination = route.path("destination");
+                routes.add("tcp " + gatewayPort + " -> " + destination.path("host").asText() + ":" + destination.path("port").path("number").asText());
+            }
+            if (!gatewayPort.equals("any")) sshAccess.add("Through Istio: ssh root@<istio-ingress-address> -p " + gatewayPort);
+        }
+        for (JsonNode rule : spec.path("http"))
+            for (JsonNode route : rule.path("route"))
+                routes.add("http -> " + route.path("destination").path("host").asText() + ":" + route.path("destination").path("port").path("number").asText());
+        return new VirtualServiceInfo(item.path("metadata").path("name").asText(), hosts, gateways, routes);
     }
 }

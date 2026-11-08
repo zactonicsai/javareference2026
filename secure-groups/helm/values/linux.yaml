@@ -1,2 +1,5 @@
 # Environment overrides for the linux release (merged over the chart's values.yaml).
 replicaCount: 1
+ssh:
+  # Paste the public key(s) that may SSH into the pod, e.g. the contents of ~/.ssh/id_ed25519.pub.
+  authorizedKeys: ""

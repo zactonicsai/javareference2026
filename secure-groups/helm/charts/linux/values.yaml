@@ -5,6 +5,21 @@ image:
 service:
   type: ClusterIP   # the Expose button switches this to NodePort/LoadBalancer
   port: 8080        # port a program inside the pod should listen on to be reachable
+ssh:
+  enabled: true
+  port: 22
+  # Public keys allowed to log in as root, one per line. Password login is disabled,
+  # so nobody can SSH in until at least one key is set (see helm/values/linux.yaml).
+  authorizedKeys: ""
+istio:
+  # Rendered only when the cluster has the Istio CRDs installed; otherwise skipped.
+  enabled: true
+  host: "*"
+  gateway:
+    create: true              # false = attach the VirtualService to an existing gateway named below
+    name: ""                  # default: <release>-gateway; for an existing one use namespace/name
+    selector: {istio: ingressgateway}
+    port: 2222                # TCP port on the Istio ingress gateway that forwards to SSH
 resources:
   requests: {cpu: 100m, memory: 128Mi}
   limits: {cpu: 500m, memory: 512Mi}
