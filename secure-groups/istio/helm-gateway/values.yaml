@@ -1,0 +1,25 @@
+# Name of the Gateway resource. Application VirtualServices reference this.
+# Defaults to the release name when empty.
+gatewayName: ""
+
+# Selector matching the istio-ingressgateway pods installed by install-istio.sh.
+selector:
+  istio: ingressgateway
+
+servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+      - myhost
+  # Uncomment for TLS (create the secret in istio-system first):
+  # - port:
+  #     number: 443
+  #     name: https
+  #     protocol: HTTPS
+  #   tls:
+  #     mode: SIMPLE
+  #     credentialName: myhost-tls
+  #   hosts:
+  #     - myhost

@@ -1,0 +1,11 @@
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: {{ .Values.gatewayName | default .Release.Name }}
+  labels:
+    app: istio-gateway
+spec:
+  selector:
+    {{- toYaml .Values.selector | nindent 4 }}
+  servers:
+    {{- toYaml .Values.servers | nindent 4 }}

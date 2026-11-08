@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: docker.io/library/spring-demo
+  repository: docker.io/library/secure-groups
   pullPolicy: Never
   tag: "1.0.0"
 
@@ -18,3 +18,20 @@ secrets:
 
 env:
   springProfilesActive: "local"
+
+# Istio traffic routing. Binds a VirtualService to a pre-existing Gateway.
+istio:
+  enabled: true
+  virtualService:
+    # Pre-existing Gateway to attach to. Use "<namespace>/<name>" if the
+    # Gateway lives in a different namespace than this release.
+    gateways:
+      - istio-gateway
+    hosts:
+      - myhost
+    # Optional URI prefix to match (e.g. "/secure-groups"). Empty = match all.
+    pathPrefix: ""
+    # Strip the matched prefix before forwarding to the service.
+    rewriteToRoot: false
+    timeout: ""        # e.g. "30s"
+    retries: {}        # e.g. { attempts: 3, perTryTimeout: "10s", retryOn: "5xx" }
