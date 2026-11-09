@@ -3,6 +3,8 @@ package com.example.groups;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.Set;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -31,7 +33,36 @@ public class LinuxEnvironmentService {
     public record Status(String state, String message, List<Step> steps, List<Pod> pods, ServiceInfo service, boolean exposed,
                          List<VirtualServiceInfo> virtualServices, List<String> sshAccess) {}
 
+    /** Starts Linux with the keys from the values file. */
     public CliRunner.Result start() { return helm.startRelease(RELEASE_KEY); }
+
+    /** Starts Linux and lets the given public keys (already validated) log in over SSH. */
+    public CliRunner.Result start(String authorizedKeys) {
+        return helm.startRelease(RELEASE_KEY, Map.of("ssh.authorizedKeys", authorizedKeys));
+    }
+
+    private static final int MAX_KEYS = 10, MAX_KEY_LENGTH = 8192;
+    // "<type> <base64> [comment]" only: no leading options such as command="..." and no control characters.
+    private static final Pattern PUBLIC_KEY = Pattern.compile(
+        "(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)|sk-ssh-ed25519@openssh\\.com|sk-ecdsa-sha2-nistp256@openssh\\.com)"
+        + " [A-Za-z0-9+/]{40,}={0,3}( [\\x20-\\x7E]{0,200})?");
+
+    /**
+     * Checks SSH public keys pasted in the browser (one per line) and returns them normalised.
+     * @throws IllegalArgumentException with a user-facing message if a line is not a public key
+     */
+    public static String validatePublicKeys(String text) {
+        List<String> keys = text.lines().map(String::strip).filter(line -> !line.isEmpty()).toList();
+        if (keys.isEmpty()) throw new IllegalArgumentException("Paste an SSH public key.");
+        if (keys.size() > MAX_KEYS) throw new IllegalArgumentException("At most " + MAX_KEYS + " SSH public keys are allowed.");
+        for (String key : keys) {
+            if (key.contains("PRIVATE KEY"))
+                throw new IllegalArgumentException("That is a private key. Paste the public key instead (the .pub file).");
+            if (key.length() > MAX_KEY_LENGTH || !PUBLIC_KEY.matcher(key).matches())
+                throw new IllegalArgumentException("Not an SSH public key. Expected a line like: ssh-ed25519 AAAA... you@example");
+        }
+        return String.join("\n", keys) + "\n";
+    }
 
     public CliRunner.Result stop() { return helm.stopRelease(RELEASE_KEY); }
 

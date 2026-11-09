@@ -75,6 +75,16 @@ class LinuxTests {
         mvc.perform(post("/api/linux/stop").with(csrf()).with(member())).andExpect(status().isOk())
             .andExpect(jsonPath("$.output").value(containsString("uninstall linux --namespace linux")));
     }
+    @Test void startAcceptsOnlyValidSshPublicKeys() throws Exception {
+        String key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ3x0pXkq7mYb1v9c2dQ4eR6tZ8uW0aB2cD4eF6gH8iJ me@laptop";
+        mvc.perform(post("/api/linux/start").with(csrf()).with(member()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"sshPublicKey\":\"" + key + "\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.output").value(containsString("--set-file ssh.authorizedKeys=")));
+        for (String bad : new String[]{"hello", "command=\\\"id\\\" " + key, "-----BEGIN OPENSSH PRIVATE KEY-----", "ssh-ed25519 AAAA,x=y"})
+            mvc.perform(post("/api/linux/start").with(csrf()).with(member()).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"sshPublicKey\":\"" + bad + "\"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").isString());
+    }
     @Test void statusSummarisesPodAndService() throws Exception {
         mvc.perform(get("/api/linux/status").with(member())).andExpect(status().isOk())
             .andExpect(jsonPath("$.state").value("running")).andExpect(jsonPath("$.exposed").value(true))

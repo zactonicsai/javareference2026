@@ -30,6 +30,8 @@ $("#admin-button").addEventListener("click", async () => {
 });
 // ---- Linux environment: Helm start/stop, kubectl status, terminal, logs, info, expose ----
 const terminal = $("#linux-terminal");
+const sshKeyInput = $("#linux-ssh-key"), SSH_KEY_STORAGE = "linux-ssh-public-key";
+try { sshKeyInput.value = localStorage.getItem(SSH_KEY_STORAGE) || ""; } catch { }
 let pollTimer, pollsLeft = 0;
 const commandHistory = []; let historyIndex = 0;
 function touch() { if (session) { clearTimeout(idleTimer); idleTimer = setTimeout(expire, session.idleTimeoutSeconds * 1000); } }
@@ -98,7 +100,10 @@ async function linuxAction(button, path, method, body, prompt) {
 }
 document.querySelectorAll("[data-start-linux]").forEach(button => button.addEventListener("click", async () => {
   $("#linux-section").scrollIntoView({behavior: "smooth"});
-  await linuxAction(button, "start", "POST"); watchStatus();
+  const sshPublicKey = sshKeyInput.value.trim();
+  // A public key is not a secret, so it is kept in this browser to save re-pasting. Storage may be unavailable.
+  try { sshPublicKey ? localStorage.setItem(SSH_KEY_STORAGE, sshPublicKey) : localStorage.removeItem(SSH_KEY_STORAGE); } catch { }
+  await linuxAction(button, "start", "POST", sshPublicKey ? {sshPublicKey} : undefined); watchStatus();
 }));
 $("#linux-stop").addEventListener("click", async event => { await linuxAction(event.currentTarget, "stop", "POST"); watchStatus(); });
 $("#linux-expose").addEventListener("click", async event => { await linuxAction(event.currentTarget, "expose", "POST"); watchStatus(); });

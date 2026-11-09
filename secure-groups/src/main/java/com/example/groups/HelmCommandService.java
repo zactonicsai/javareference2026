@@ -1,9 +1,11 @@
 package com.example.groups;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 /** Calls the Helm CLI. Charts and values files are resolved from the configured reference directories. */
@@ -22,7 +24,13 @@ public class HelmCommandService {
     }
 
     /** helm upgrade --install for a configured release. */
-    public CliRunner.Result startRelease(String key) {
+    public CliRunner.Result startRelease(String key) { return startRelease(key, Map.of()); }
+
+    /**
+     * helm upgrade --install with extra chart values. Each value is handed to Helm through a temporary
+     * file (--set-file), so its content is never parsed as Helm --set syntax or as a command-line flag.
+     */
+    public CliRunner.Result startRelease(String key, Map<String, String> fileValues) {
         HelmProperties.Release release = release(key);
         Path chart = resolve(props.chartsDir(), release.chart(), "chart");
         if (!Files.isDirectory(chart)) throw new CliRunner.CliException("Chart directory not found: " + chart);
@@ -33,7 +41,20 @@ public class HelmCommandService {
             if (!Files.isRegularFile(values)) throw new CliRunner.CliException("Values file not found: " + values);
             args.addAll(List.of("--values", values.toString()));
         }
-        return runHelm("upgrade", args);
+        List<Path> temporary = new ArrayList<>();
+        try {
+            for (Map.Entry<String, String> value : fileValues.entrySet()) {
+                Path file = Files.createTempFile("helm-value-", ".txt");
+                temporary.add(file);
+                Files.writeString(file, value.getValue());
+                args.addAll(List.of("--set-file", value.getKey() + "=" + file));
+            }
+            return runHelm("upgrade", args);
+        } catch (IOException e) {
+            throw new CliRunner.CliException("Could not write a temporary Helm value file", e);
+        } finally {
+            for (Path file : temporary) try { Files.deleteIfExists(file); } catch (IOException ignored) { }
+        }
     }
 
     /** helm uninstall for a configured release; an already-removed release is not an error. */

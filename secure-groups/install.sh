@@ -11,6 +11,7 @@ docker save -o spring-demo.tar spring-demo:1.0.0
 kind load image-archive spring-demo.tar --name devspaces
 docker exec -it devspaces-control-plane crictl img
 
+
 # 3. Deploy the app (Deployment, Service, Secret, VirtualService -> istio-gateway / myhost)
 helm upgrade --install my-secure-groups ./helm --namespace devspaces --wait
 
@@ -18,3 +19,4 @@ helm upgrade --install my-secure-groups ./helm --namespace devspaces --wait
 echo
 echo "Run:  kubectl port-forward -n istio-system svc/istio-ingressgateway 8080:80"
 echo "Then: curl -H 'Host: myhost' http://localhost:8080/"
+echo "ssh-keygen -R "[localhost]:2222"

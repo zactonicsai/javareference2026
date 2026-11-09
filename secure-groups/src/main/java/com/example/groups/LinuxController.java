@@ -27,8 +27,19 @@ public class LinuxController {
     @GetMapping("/status")
     ResponseEntity<?> status() { return guarded("Reading the status", linux::status); }
 
+    /** Optional JSON body {"sshPublicKey": "..."}: keys allowed to SSH into the pod; without it the values file decides. */
     @PostMapping("/start")
-    ResponseEntity<?> start() { return guarded("Starting Linux", () -> body(linux.start())); }
+    ResponseEntity<?> start(@RequestBody(required = false) Map<String, String> request) {
+        String pasted = request == null ? null : request.get("sshPublicKey");
+        if (pasted == null || pasted.isBlank()) return guarded("Starting Linux", () -> body(linux.start()));
+        String keys;
+        try {
+            keys = LinuxEnvironmentService.validatePublicKeys(pasted);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+        return guarded("Starting Linux", () -> body(linux.start(keys)));
+    }
 
     @PostMapping("/stop")
     ResponseEntity<?> stop() { return guarded("Stopping Linux", () -> body(linux.stop())); }
