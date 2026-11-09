@@ -41,11 +41,6 @@ public class CliRunner {
         public CliTimeoutException(String message) { super(message); }
     }
 
-    /** Thrown when an action needs a pod but none exists yet. */
-    public static class NoPodException extends RuntimeException {
-        public NoPodException(String message) { super(message); }
-    }
-
     public Result run(List<String> command, String kubeconfigPath, long timeoutSeconds) {
         String display = String.join(" ", command);
         log.info("Executing: {}", display);

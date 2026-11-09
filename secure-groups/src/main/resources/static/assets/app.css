@@ -20,5 +20,11 @@
 .terminal-input::placeholder{color:#94a3b8}
 .key-input{display:block;width:100%;padding:.75rem;border:1px solid #94a3b8;border-radius:.5rem;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8125rem;line-height:1.4;resize:vertical;word-break:break-all}
 .key-input:focus-visible{outline:2px solid #1d4ed8;outline-offset:1px}
+.form-row{display:flex;flex-wrap:wrap;gap:1rem}
+.field{flex:1 1 10rem;min-width:0}
+.field-wide{flex:2 1 18rem}
+.field-input{display:block;width:100%;padding:.75rem;border:1px solid #94a3b8;border-radius:.5rem;background:#fff;font:inherit;color:inherit}
+.field-input:focus-visible{outline:2px solid #1d4ed8;outline-offset:1px}
+.divider{margin:1.75rem 0;border:0;border-top:1px solid #e2e8f0}
 .btn-danger{background:#b91c1c;color:#fff}
 #linux-section button:disabled{opacity:.5;cursor:not-allowed}

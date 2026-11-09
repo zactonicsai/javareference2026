@@ -24,8 +24,7 @@ helm:
   charts-dir: ${HELM_CHARTS_DIR:./helm/charts}
   values-dir: ${HELM_VALUES_DIR:./helm/values}
   releases:
-    linux:
-      release-name: linux
+    linux:                        # the chart behind every Linux environment (release names are <group>-<name>)
       chart: linux                # -> <charts-dir>/linux
       namespace: ${HELM_LINUX_NAMESPACE:linux}
       values-file: linux.yaml     # -> <values-dir>/linux.yaml
@@ -36,3 +35,40 @@ kubectl:
   timeout-seconds: 30                       # also the limit for one terminal command
   expose-type: ${LINUX_EXPOSE_TYPE:NodePort}   # NodePort or LoadBalancer
   log-tail-lines: 200
+# Linux environments: one Helm release per environment, named <group>-<name> (for example dev1-linux).
+linux:
+  max-per-group: 5            # how many environments one group may run at the same time
+  istio-port-base: 20000      # each environment gets its own Istio gateway TCP port in 20000-29999
+  # The static image list offered in the browser. "packages" are apt packages installed at pod start
+  # when the image does not already contain them, so images must be Debian or Ubuntu based.
+  images:
+    - id: devtools
+      label: Developer tools (C/C++, Java, Python, Git)
+      description: Ubuntu 24.04 with gcc, g++, make, cmake, JDK 21, Maven, Python 3 and Git. First start takes a few minutes.
+      repository: ${LINUX_DEVTOOLS_IMAGE:ubuntu}
+      tag: ${LINUX_DEVTOOLS_TAG:24.04}
+      packages: git build-essential cmake gdb openjdk-21-jdk-headless maven python3 python3-pip python3-venv curl ca-certificates nano
+    - id: ubuntu
+      label: Ubuntu 24.04 (basic)
+      description: A small Ubuntu system with Git. Starts fastest.
+      repository: ubuntu
+      tag: "24.04"
+      packages: git
+    - id: java
+      label: Java 21 with Maven
+      description: Eclipse Temurin JDK 21, Maven 3.9 and Git.
+      repository: maven
+      tag: 3.9-eclipse-temurin-21
+      packages: git
+    - id: python
+      label: Python 3.12
+      description: Python 3.12 with pip, a C compiler and Git.
+      repository: python
+      tag: "3.12"
+      packages: git
+    - id: node
+      label: Node.js 22
+      description: Node.js 22 with npm and Git.
+      repository: node
+      tag: "22"
+      packages: git

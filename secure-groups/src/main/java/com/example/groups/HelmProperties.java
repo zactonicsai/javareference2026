@@ -18,6 +18,6 @@ public record HelmProperties(
         @DefaultValue("./helm/values") String valuesDir,
         @DefaultValue Map<String, Release> releases) {
 
-    /** One deployable release; chart and valuesFile are relative to the reference directories. */
-    public record Release(String releaseName, String chart, @DefaultValue("default") String namespace, String valuesFile) {}
+    /** One deployable chart; chart and valuesFile are relative to the reference directories. */
+    public record Release(String chart, @DefaultValue("default") String namespace, String valuesFile) {}
 }

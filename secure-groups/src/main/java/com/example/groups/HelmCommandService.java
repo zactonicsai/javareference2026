@@ -23,18 +23,16 @@ public class HelmCommandService {
         return release;
     }
 
-    /** helm upgrade --install for a configured release. */
-    public CliRunner.Result startRelease(String key) { return startRelease(key, Map.of()); }
-
     /**
-     * helm upgrade --install with extra chart values. Each value is handed to Helm through a temporary
-     * file (--set-file), so its content is never parsed as Helm --set syntax or as a command-line flag.
+     * helm upgrade --install: deploys the chart configured under helm.releases.<key> as a release called releaseName.
+     * Each extra value is handed to Helm through a temporary file (--set-file), so its content is never
+     * parsed as Helm --set syntax or as a command-line flag.
      */
-    public CliRunner.Result startRelease(String key, Map<String, String> fileValues) {
+    public CliRunner.Result startRelease(String key, String releaseName, Map<String, String> fileValues) {
         HelmProperties.Release release = release(key);
         Path chart = resolve(props.chartsDir(), release.chart(), "chart");
         if (!Files.isDirectory(chart)) throw new CliRunner.CliException("Chart directory not found: " + chart);
-        List<String> args = new ArrayList<>(List.of("--install", release.releaseName(), chart.toString(),
+        List<String> args = new ArrayList<>(List.of("--install", releaseName, chart.toString(),
             "--namespace", release.namespace(), "--create-namespace"));
         if (release.valuesFile() != null && !release.valuesFile().isBlank()) {
             Path values = resolve(props.valuesDir(), release.valuesFile(), "values file");
@@ -57,13 +55,13 @@ public class HelmCommandService {
         }
     }
 
-    /** helm uninstall for a configured release; an already-removed release is not an error. */
-    public CliRunner.Result stopRelease(String key) {
+    /** helm uninstall; an already-removed release is not an error. */
+    public CliRunner.Result stopRelease(String key, String releaseName) {
         HelmProperties.Release release = release(key);
-        CliRunner.Result result = run("uninstall", List.of(release.releaseName(), "--namespace", release.namespace()));
+        CliRunner.Result result = run("uninstall", List.of(releaseName, "--namespace", release.namespace()));
         if (result.ok()) return result;
         if (result.output().contains("not found"))
-            return new CliRunner.Result(result.command(), 0, "Release '" + release.releaseName() + "' is not running.", "");
+            return new CliRunner.Result(result.command(), 0, "Release '" + releaseName + "' is not running.", "");
         throw failure("uninstall", result);
     }
 
