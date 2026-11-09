@@ -5,6 +5,8 @@ metadata:
   labels:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
+    workspace-group: {{ .Values.group | quote }}
+    workspace-image: {{ .Values.imageId | quote }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -15,11 +17,11 @@ spec:
       labels:
         app.kubernetes.io/name: {{ .Chart.Name }}
         app.kubernetes.io/instance: {{ .Release.Name }}
-      {{- if .Values.ssh.enabled }}
+        workspace-group: {{ .Values.group | quote }}
+        workspace-image: {{ .Values.imageId | quote }}
       annotations:
-        # Restart the pod when the authorized keys change.
-        checksum/ssh-keys: {{ .Values.ssh.authorizedKeys | sha256sum | quote }}
-      {{- end }}
+        # Restart the pod when the authorized keys or the package list change.
+        checksum/config: {{ printf "%s|%s" .Values.ssh.authorizedKeys .Values.packages | sha256sum | quote }}
     spec:
       containers:
         - name: linux

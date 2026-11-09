@@ -5,6 +5,8 @@ metadata:
   labels:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
+    workspace-group: {{ .Values.group | quote }}
+    workspace-image: {{ .Values.imageId | quote }}
 spec:
   type: {{ .Values.service.type }}
   selector:

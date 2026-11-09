@@ -1,7 +1,12 @@
 replicaCount: 1
+# The app fills in the next four values from the image the user picked (see linux.images in application.yml).
+group: ""       # the user group that owns this environment; stored as the workspace-group label
+imageId: ""     # id of the chosen image; stored as the workspace-image label
 image:
   repository: ubuntu
   tag: "24.04"
+# Space-separated apt packages installed when the pod starts, unless the image already has them.
+packages: "git"
 service:
   type: ClusterIP   # the Expose button switches this to NodePort/LoadBalancer
   port: 8080        # port a program inside the pod should listen on to be reachable
@@ -19,7 +24,7 @@ istio:
     create: true              # false = attach the VirtualService to an existing gateway named below
     name: ""                  # default: <release>-gateway; for an existing one use namespace/name
     selector: {istio: ingressgateway}
-    port: 2222                # TCP port on the Istio ingress gateway that forwards to SSH
-resources:
-  requests: {cpu: 100m, memory: 128Mi}
-  limits: {cpu: 500m, memory: 512Mi}
+    port: 2222                # TCP port on the Istio ingress gateway that forwards to SSH (the app sets one per environment)
+resources:           # compiling needs room: raise the limits for big builds
+  requests: {cpu: 250m, memory: 256Mi}
+  limits: {cpu: "2", memory: 2Gi}

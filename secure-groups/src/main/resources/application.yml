@@ -8,7 +8,7 @@ server:
       cookie:
         http-only: true
         secure: true
-        same-site: strict
+        same-site: ${SESSION_SAME_SITE:strict}   # the keycloak profile changes this to lax
   error:
     include-message: never
     include-stacktrace: never
@@ -72,3 +72,13 @@ linux:
       repository: node
       tag: "22"
       packages: git
+# Optional Keycloak (OpenID Connect) sign-in, in addition to the built-in accounts.
+# Switch it on with the "keycloak" profile (see application-keycloak.yml), not by editing this file.
+keycloak:
+  enabled: ${KEYCLOAK_ENABLED:false}
+  issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8081/realms/workspace}   # the realm address
+  client-id: ${KEYCLOAK_CLIENT_ID:team-workspace}
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:}   # supplied at startup, never committed
+  groups-claim: groups      # token claim listing the user's Keycloak groups -> GROUP_<name>
+  roles-claim: roles        # token claim listing realm roles
+  admin-role: admin         # realm role that grants the Administration menu

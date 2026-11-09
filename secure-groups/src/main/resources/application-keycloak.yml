@@ -1,0 +1,12 @@
+# Keycloak sign-in profile: adds "Sign in with Keycloak" next to the built-in username/password form.
+# Activate together with your usual profile, for example: -Dspring-boot.run.profiles=local,keycloak
+# and supply KEYCLOAK_CLIENT_SECRET (and KEYCLOAK_ISSUER_URI if Keycloak is not on localhost:8081).
+keycloak:
+  enabled: true
+server:
+  servlet:
+    session:
+      cookie:
+        # Keycloak sends the browser back with a cross-site redirect. A "strict" cookie would not be
+        # sent on that request and sign-in would fail; "lax" still blocks cross-site POST requests.
+        same-site: lax

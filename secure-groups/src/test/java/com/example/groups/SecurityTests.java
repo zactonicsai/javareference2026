@@ -27,6 +27,8 @@ class SecurityTests {
         mvc.perform(get("/api/session")).andExpect(status().isUnauthorized());
         mvc.perform(get("/login.html")).andExpect(status().isOk());
         mvc.perform(get("/api/csrf")).andExpect(status().isOk()).andExpect(jsonPath("$.token").isString());
+        // Keycloak sign-in is off unless the keycloak profile is active.
+        mvc.perform(get("/api/login-options")).andExpect(status().isOk()).andExpect(jsonPath("$.oidc").value(false));
     }
     @ParameterizedTest
     @CsvSource({"admin,dev", "user,dev1", "user2,dev2"})

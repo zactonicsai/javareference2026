@@ -5,6 +5,8 @@ metadata:
   labels:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
+    workspace-group: {{ .Values.group | quote }}
+    workspace-image: {{ .Values.imageId | quote }}
 data:
   authorized_keys: |
     {{- .Values.ssh.authorizedKeys | trim | nindent 4 }}
@@ -12,22 +14,39 @@ data:
     #!/bin/sh
     echo "Linux container started at $(date)"
     uname -a
+    # Keep the image's PATH and JAVA_HOME for SSH sessions too (they normally only exist inside the container process).
+    { echo "PATH=\"$PATH\""; [ -n "$JAVA_HOME" ] && echo "JAVA_HOME=\"$JAVA_HOME\""; } > /etc/environment
+    { echo "export PATH=\"$PATH\""; [ -n "$JAVA_HOME" ] && echo "export JAVA_HOME=\"$JAVA_HOME\""; } > /etc/profile.d/container-env.sh
+    PACKAGES="{{ .Values.packages }}{{ if .Values.ssh.enabled }} openssh-server{{ end }}"
+    missing=""
+    for package in $PACKAGES; do
+      dpkg -s "$package" >/dev/null 2>&1 || missing="$missing $package"
+    done
+    if [ -n "$missing" ]; then
+      echo "Installing:$missing (this can take a few minutes)..."
+      export DEBIAN_FRONTEND=noninteractive
+      if apt-get update -qq && apt-get install -y -qq --no-install-recommends $missing >/dev/null; then
+        echo "Packages installed."
+      else
+        echo "ERROR: package installation failed (does the pod have internet access?)."
+      fi
+    else
+      echo "All packages are already in the image."
+    fi
     {{- if .Values.ssh.enabled }}
-    echo "Installing the SSH server..."
-    export DEBIAN_FRONTEND=noninteractive
-    if apt-get update -qq && apt-get install -y -qq --no-install-recommends openssh-server >/dev/null; then
+    if [ -x /usr/sbin/sshd ]; then
       mkdir -p /run/sshd /root/.ssh
       chmod 700 /root/.ssh
       cp /opt/linux/authorized_keys /root/.ssh/authorized_keys
       chmod 600 /root/.ssh/authorized_keys
       ssh-keygen -A
       if [ ! -s /root/.ssh/authorized_keys ]; then
-        echo "WARNING: no SSH public key is configured (ssh.authorizedKeys), so nobody can log in yet."
+        echo "WARNING: no SSH public key is configured, so nobody can log in over SSH yet."
       fi
       echo "SSH server listening on port {{ .Values.ssh.port }} (key login only, user root)."
       # -D keeps sshd in the foreground as the container's main process; -e sends its log to the pod log.
       exec /usr/sbin/sshd -D -e -p {{ .Values.ssh.port }} -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no -o PermitRootLogin=prohibit-password
     fi
-    echo "ERROR: the SSH server could not be installed (does the pod have internet access?). Continuing without SSH."
+    echo "ERROR: the SSH server is not available. Continuing without SSH."
     {{- end }}
     exec sleep infinity

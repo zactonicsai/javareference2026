@@ -11,6 +11,17 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api")
 public class SessionController {
+    private final boolean keycloakEnabled;
+
+    public SessionController(KeycloakProperties keycloak) { this.keycloakEnabled = keycloak.enabled(); }
+
+    /** Tells the login page which sign-in methods to show. Public, and contains no secrets. */
+    @GetMapping("/login-options")
+    Map<String, Object> loginOptions() {
+        return keycloakEnabled
+            ? Map.of("oidc", true, "oidcName", "Keycloak", "oidcUrl", "/oauth2/authorization/keycloak")
+            : Map.of("oidc", false);
+    }
     @GetMapping("/csrf")
     Map<String, String> csrf(CsrfToken token) {
         return Map.of("token", token.getToken(), "headerName", token.getHeaderName(), "parameterName", token.getParameterName());

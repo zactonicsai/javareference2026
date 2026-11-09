@@ -1,0 +1,107 @@
+{
+  "realm": "workspace",
+  "displayName": "Team Workspace (test realm)",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [
+      { "name": "admin", "description": "Grants the Administration menu in Team Workspace" }
+    ]
+  },
+  "groups": [
+    { "name": "dev" },
+    { "name": "dev1" },
+    { "name": "dev2" }
+  ],
+  "clients": [
+    {
+      "clientId": "team-workspace",
+      "name": "Team Workspace",
+      "description": "The Spring Boot application. Confidential client using the authorization code flow.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "test-only-change-me-workspace-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1:8080/login/oauth2/code/keycloak",
+        "http://localhost:8080/login/oauth2/code/keycloak"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "post.logout.redirect.uris": "http://127.0.0.1:8080/login.html?logout##http://localhost:8080/login.html?logout"
+      },
+      "defaultClientScopes": ["basic", "profile", "email", "roles", "web-origins", "acr"],
+      "optionalClientScopes": [],
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "Tester",
+      "email": "admin@example.test",
+      "groups": ["/dev"],
+      "realmRoles": ["admin"],
+      "credentials": [{ "type": "password", "value": "Test-only-admin-1234", "temporary": false }]
+    },
+    {
+      "username": "user",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Feature",
+      "lastName": "Tester",
+      "email": "user@example.test",
+      "groups": ["/dev1"],
+      "credentials": [{ "type": "password", "value": "Test-only-user-1234", "temporary": false }]
+    },
+    {
+      "username": "user2",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Quality",
+      "lastName": "Tester",
+      "email": "user2@example.test",
+      "groups": ["/dev2"],
+      "credentials": [{ "type": "password", "value": "Test-only-user2-1234", "temporary": false }]
+    }
+  ]
+}

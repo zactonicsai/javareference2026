@@ -28,3 +28,8 @@
 .divider{margin:1.75rem 0;border:0;border-top:1px solid #e2e8f0}
 .btn-danger{background:#b91c1c;color:#fff}
 #linux-section button:disabled{opacity:.5;cursor:not-allowed}
+/* Login page: single sign-on link, shown only when the server enables it */
+.oidc-button{display:block;margin-top:1rem;padding:.75rem;border:1px solid #94a3b8;border-radius:.5rem;text-align:center;font-weight:600;color:#1e40af;background:#fff}
+.oidc-button:hover{background:#f1f5f9}
+.oidc-button:focus-visible{outline:2px solid #1d4ed8;outline-offset:2px}
+.oidc-button[hidden]{display:none}

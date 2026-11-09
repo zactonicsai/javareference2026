@@ -8,8 +8,9 @@ are already installed, and stop it when you are done.
 This README is a tutorial. It has two halves:
 
 - **Part 1** walks you through one complete example, step by step.
-- **Parts 2 to 9** explain everything behind it: the words, Helm, the Java code,
-  groups and names, images, networking, best practices and fixing problems.
+- **Parts 2 to 10** explain everything behind it: the words, Helm, the Java code,
+  groups and names, images, networking, best practices, fixing problems, and
+  signing in with Keycloak.
 
 ---
 
@@ -320,7 +321,9 @@ All Java files are in `src/main/java/com/example/groups/`.
 | File | Job |
 |---|---|
 | `Application.java` | Starts the website |
-| `SecurityConfig.java` | Sign-in, the three accounts, who may open which address, security headers |
+| `SecurityConfig.java` | Sign-in, the three accounts, who may open which address, security headers, optional Keycloak sign-in |
+| `KeycloakProperties.java` | Reads the `keycloak:` settings |
+| `KeycloakAuthorityMapper.java` | Turns Keycloak groups and roles into this website's groups and admin right |
 | `SessionController.java` | The original pages: session information and the team pop-ups |
 | `CliRunner.java` | Runs one command-line tool safely and returns its output |
 | `HelmProperties.java` | Reads the `helm:` settings from `application.yml` |
@@ -379,6 +382,7 @@ mvn test
 ```
 
 `SecurityTests` checks sign-in and the group rules of the original pages.
+`KeycloakTests` checks the optional Keycloak sign-in without needing a Keycloak server.
 `LinuxTests` checks every address above. It swaps `helm` and `kubectl` for tiny
 stand-in scripts, so the tests need no cluster.
 
@@ -587,3 +591,149 @@ kubectl describe pods -n linux -l app.kubernetes.io/instance=dev1-linux
 kubectl logs -n linux deploy/dev1-linux --tail=50
 helm list -n linux
 ```
+
+---
+
+## Part 10: Signing in with Keycloak (optional)
+
+### What Keycloak and OIDC are
+
+**Keycloak** is a separate program whose only job is to know who people are. Instead
+of every website keeping its own passwords, websites send you to Keycloak, you sign
+in there once, and Keycloak tells the website "this is really `user`, and they are in
+group `dev1`". The set of rules for that conversation is called **OpenID Connect**, or
+**OIDC**.
+
+| Word | Plain meaning |
+|---|---|
+| **Realm** | One separate set of users, groups and settings inside Keycloak |
+| **Client** | A website that is allowed to ask Keycloak who someone is. Ours is `team-workspace` |
+| **Client secret** | A password the *website* uses to prove itself to Keycloak |
+| **Issuer** | The realm's address, for example `http://localhost:8081/realms/workspace` |
+| **ID token** | The signed note Keycloak hands back: who you are and which groups you are in |
+| **Claim** | One fact inside the token, such as `groups: ["dev1"]` |
+
+### It is a switch, and the old sign-in stays
+
+The built-in accounts (`admin`, `user`, `user2`) and the username/password form keep
+working exactly as before. Keycloak is added **only** when you start the website with
+the `keycloak` profile. Then the login page shows one more button, **Sign in with
+Keycloak**.
+
+| | Built-in accounts only (default) | Built-in plus Keycloak (`keycloak` profile) |
+|---|---|---|
+| ✅ Good | Nothing extra to run; simplest | Real user management: add people, reset passwords, turn on two-step sign-in, one sign-in for many websites |
+| ❌ Bad | Only three fixed accounts; passwords handed over at startup | One more server to run and keep safe; the session cookie is `lax` instead of `strict` (explained below) |
+
+### Step by step
+
+**1. Start Keycloak with the test realm.** The file `keycloak/workspace-realm.json`
+contains the realm, the client, the three groups and three test users. Run this from
+the project folder:
+
+```bash
+docker run --name keycloak-dev -p 8081:8080 \
+  -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=change_me \
+  -v "$PWD/keycloak:/opt/keycloak/data/import" \
+  quay.io/keycloak/keycloak:latest start-dev --import-realm
+```
+
+Keycloak's own admin console is then at <http://localhost:8081> (sign in with the
+bootstrap admin name and password from the command). Port 8081 is used because the
+website already uses 8080.
+
+**2. Start the website with the `keycloak` profile.**
+
+```bash
+export ADMIN_PASSWORD='pick-a-long-password-1'
+export USER_PASSWORD='pick-a-long-password-2'
+export USER2_PASSWORD='pick-a-long-password-3'
+export KEYCLOAK_CLIENT_SECRET='test-only-change-me-workspace-secret'
+
+mvn spring-boot:run -Dspring-boot.run.profiles=local,keycloak
+```
+
+**3. Sign in.** Open <http://127.0.0.1:8080>, press **Sign in with Keycloak**, and use
+one of the test users:
+
+| Keycloak user | Password | Keycloak group | Realm role | In the website |
+|---|---|---|---|---|
+| `admin` | `Test-only-admin-1234` | `dev` | `admin` | Group `dev` plus the Administration menu |
+| `user` | `Test-only-user-1234` | `dev1` | none | Group `dev1` |
+| `user2` | `Test-only-user2-1234` | `dev2` | none | Group `dev2` |
+
+**4. Sign out.** The **Sign out** button also signs you out of Keycloak and brings
+you back to the login page.
+
+These users, passwords and the client secret are **for testing only**. They are
+written in a file anyone with the project can read. Change all of them before
+letting real people use it.
+
+### What is inside the realm file
+
+| Part | What it sets up |
+|---|---|
+| `realm` | A realm called `workspace` with self-registration switched off |
+| `roles` | The realm role `admin` |
+| `groups` | `dev`, `dev1`, `dev2`, the same names the website already uses |
+| `clients` | The client `team-workspace`: confidential (has a secret), authorization code flow only, and only allowed to send people back to `http://127.0.0.1:8080` or `http://localhost:8080` |
+| `protocolMappers` | Two mappers that write the user's groups into a `groups` claim and realm roles into a `roles` claim |
+| `users` | The three test users, each in one group |
+
+The import happens only when the realm does not exist yet. To re-import after editing
+the file, delete the container (`docker rm -f keycloak-dev`) and start it again.
+
+### How groups travel from Keycloak to the website
+
+```
+Keycloak group "dev1"  ->  token claim  groups: ["dev1"]  ->  website authority  GROUP_dev1
+Keycloak role "admin"  ->  token claim  roles: ["admin"]  ->  website authority  ROLE_ADMIN
+```
+
+After that, a Keycloak user is treated exactly like a built-in user. All the rules in
+Part 6 (who can touch which pod) work the same. To give someone access to a group's
+pods, add them to that group in Keycloak; they get it the next time they sign in.
+
+Create a new group in Keycloak (lowercase letters and digits, such as `dev3`) and its
+members can start `dev3-...` pods straight away. Nothing in the website needs to change.
+
+### The settings
+
+| Setting | Environment variable | Default |
+|---|---|---|
+| `keycloak.enabled` | `KEYCLOAK_ENABLED` | `false`; the `keycloak` profile sets it to `true` |
+| `keycloak.issuer-uri` | `KEYCLOAK_ISSUER_URI` | `http://localhost:8081/realms/workspace` |
+| `keycloak.client-id` | `KEYCLOAK_CLIENT_ID` | `team-workspace` |
+| `keycloak.client-secret` | `KEYCLOAK_CLIENT_SECRET` | none; you must supply it |
+| `keycloak.groups-claim` | | `groups` |
+| `keycloak.roles-claim` | | `roles` |
+| `keycloak.admin-role` | | `admin` |
+
+### Why the cookie changes from `strict` to `lax`
+
+The website remembers you with a session cookie. `strict` means "never send this
+cookie when arriving from another website". But coming back from Keycloak *is*
+arriving from another website, so with `strict` the sign-in could never finish. The
+`keycloak` profile therefore uses `lax`: the cookie is sent when you follow a link
+or redirect, but still not on hidden cross-site form posts. The website's CSRF
+token protection stays on either way. If you switch Keycloak on without the profile,
+the website refuses to start and tells you about this setting.
+
+### Using it for real
+
+1. Run Keycloak in production mode with HTTPS and a real database, not `start-dev`.
+2. Create your own client secret in Keycloak and pass it as `KEYCLOAK_CLIENT_SECRET`.
+3. Replace the redirect addresses in the client with your website's real `https://` address.
+4. Delete the test users.
+5. Run the website with the `tls` profile (or behind an HTTPS proxy) plus `keycloak`.
+
+### Fixing Keycloak problems
+
+| What you see | Likely cause | What to do |
+|---|---|---|
+| No **Sign in with Keycloak** button | The `keycloak` profile is not active | Start with `-Dspring-boot.run.profiles=local,keycloak` |
+| The website will not start: "must be set when keycloak.enabled=true" | No client secret | Set `KEYCLOAK_CLIENT_SECRET` |
+| Keycloak shows "Invalid parameter: redirect_uri" | You opened the website at an address the client does not list | Use `http://127.0.0.1:8080` or `http://localhost:8080`, or add your address to the client's redirect URIs |
+| Back on the login page with "Sign-in failed" | Wrong client secret, or the website cannot reach Keycloak | Compare the secret with the client's **Credentials** tab; open the issuer address in a browser |
+| Signed in, but no group menu or pods | The user is in no group, or the group name has capitals or spaces | Add the user to `dev`, `dev1` or `dev2` (lowercase letters and digits only) |
+| The realm was not imported | The realm already existed, or the folder was not mounted | Remove the container and run the `docker run` command from the project folder |
