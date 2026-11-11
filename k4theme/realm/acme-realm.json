@@ -1,0 +1,66 @@
+{
+  "realm": "acme",
+  "displayName": "Acme",
+  "enabled": true,
+  "sslRequired": "external",
+  "loginTheme": "acme-local",
+  "emailTheme": "acme-base",
+  "bruteForceProtected": true,
+  "resetPasswordAllowed": true,
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "no-reply@acme.test",
+    "fromDisplayName": "Acme Login"
+  },
+  "browserFlow": "browser-email-otp",
+  "authenticationFlows": [
+    {
+      "alias": "browser-email-otp",
+      "description": "Browser login: password followed by the custom e-mail OTP step",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "authenticator": "auth-cookie", "authenticatorFlow": false, "requirement": "ALTERNATIVE", "priority": 10 },
+        { "authenticator": "identity-provider-redirector", "authenticatorFlow": false, "requirement": "ALTERNATIVE", "priority": 20 },
+        { "flowAlias": "browser-email-otp forms", "authenticatorFlow": true, "requirement": "ALTERNATIVE", "priority": 30 }
+      ]
+    },
+    {
+      "alias": "browser-email-otp forms",
+      "description": "Username/password, then e-mail OTP",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "authenticator": "auth-username-password-form", "authenticatorFlow": false, "requirement": "REQUIRED", "priority": 10 },
+        { "authenticator": "acme-email-otp", "authenticatorConfig": "acme-email-otp-config", "authenticatorFlow": false, "requirement": "REQUIRED", "priority": 20 }
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "acme-email-otp-config",
+      "config": {
+        "codeLength": "6",
+        "ttlSeconds": "300",
+        "maxAttempts": "3",
+        "resendCooldownSeconds": "30"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "email": "alice@acme.test",
+      "firstName": "Alice",
+      "lastName": "Example",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "alice", "temporary": false }
+      ]
+    }
+  ]
+}

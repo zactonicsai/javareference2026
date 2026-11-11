@@ -1,0 +1,25 @@
+/*
+ * local.css -- styles that exist only in the acme-local override theme.
+ * Loaded last (see "styles" in theme.properties).
+ */
+
+/* Re-colour the brand locally by overriding the variable defined in acme.css. */
+:root {
+  --acme-brand: #b45309;
+  --acme-brand-dark: #92400e;
+}
+
+/* Environment banner inserted by our login.ftl override. */
+.acme-env-banner {
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 4px solid var(--acme-brand);
+  background: rgba(180, 83, 9, 0.08);
+  font-size: 0.875rem;
+}
+
+.acme-help {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  text-align: center;
+}

@@ -1,0 +1,30 @@
+/*
+ * acme.css -- branding shared by every theme that inherits from acme-base.
+ * Loaded after Keycloak's css/styles.css (see "styles" in theme.properties),
+ * so equal-specificity rules here win.
+ *
+ * Prefer overriding PatternFly CSS variables over re-styling components: it
+ * survives Keycloak upgrades much better than copying selectors.
+ *
+ * A child theme does not edit this file. It adds its own stylesheet after it:
+ *   styles=css/styles.css css/acme.css css/local.css
+ */
+:root {
+  --acme-brand: #0b5fff;
+  --acme-brand-dark: #0847c2;
+
+  --pf-v5-global--primary-color--100: var(--acme-brand);
+  --pf-v5-global--primary-color--200: var(--acme-brand-dark);
+  --pf-v5-global--link--Color: var(--acme-brand);
+  --pf-v5-global--link--Color--hover: var(--acme-brand-dark);
+}
+
+/* Brand accent on the login card. */
+.pf-v5-c-login__main {
+  border-top: 4px solid var(--acme-brand);
+}
+
+/* Instruction line of the e-mail OTP step. */
+.acme-instruction {
+  margin-bottom: var(--pf-v5-global--spacer--md, 1rem);
+}

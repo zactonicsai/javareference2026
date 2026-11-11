@@ -1,0 +1,101 @@
+# Keycloak + custom login provider + provider theme + local override theme.
+#
+#   cp .env.example .env        (then edit the passwords)
+#   docker compose up --build
+#
+#   Login to test:   http://localhost:8080/realms/acme/account   (alice / alice)
+#   Mail with code:  http://localhost:8025                        (Mailpit)
+#   Admin console:   http://localhost:8080/admin                  (see .env)
+#
+# This file is a LOCAL DEVELOPMENT setup (start-dev, plain HTTP, mail catcher).
+# See README.md, "Going to production", for what to change.
+
+name: keycloak-custom-login
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+    # No "ports": the database is reachable only from the compose network.
+
+  # Catches every outgoing mail so you can read the sign-in code. Dev only.
+  mailpit:
+    image: axllent/mailpit:latest   # pin a version tag for anything shared/long-lived
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"   # web UI; SMTP 1025 stays internal
+    networks: [backend]
+
+  keycloak:
+    # Built from ./Dockerfile: compiles ./provider and bakes the jar into the image.
+    # After changing Java code or anything under provider/: docker compose up --build
+    build:
+      context: .
+      args:
+        KEYCLOAK_VERSION: ${KEYCLOAK_VERSION:-26.8.2}
+    image: acme/keycloak:${KEYCLOAK_VERSION:-26.8.2}
+    restart: unless-stopped
+    # start-dev: HTTP allowed, relaxed hostname checks and -- important for theme
+    # work -- NO theme/template caching, so edits under ./themes show on reload.
+    # --import-realm loads realm/*.json on first start (existing realms are skipped).
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:?set KC_BOOTSTRAP_ADMIN_USERNAME in .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?set KC_BOOTSTRAP_ADMIN_PASSWORD in .env}
+    volumes:
+      # LOCAL OVERRIDE THEMES. Each sub-folder of ./themes is one theme:
+      #   ./themes/acme-local/login/...   (parent=acme-base, which is inside the jar)
+      # Bind-mounted read-only so you can edit on the host and just reload the page.
+      # To add another override theme, create ./themes/<name>/login/theme.properties
+      # with "parent=acme-base" and select <name> as the realm's login theme.
+      - ./themes:/opt/keycloak/themes:ro
+      # Realm definition imported on first start (theme selection, flow, test user).
+      - ./realm:/opt/keycloak/data/import:ro
+    ports:
+      - "127.0.0.1:${KEYCLOAK_PORT:-8080}:8080"
+      # 9000 (management: health, metrics) is intentionally not published.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    healthcheck:
+      # The image has no curl/wget, so probe /health/ready on the management
+      # port with bash's built-in /dev/tcp and check the HTTP status line.
+      test:
+        - CMD
+        - /bin/bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          read -r status <&3 &&
+          [[ "$$status" == *" 200 "* ]]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+    networks: [backend]
+
+volumes:
+  postgres-data:
+
+networks:
+  backend:
