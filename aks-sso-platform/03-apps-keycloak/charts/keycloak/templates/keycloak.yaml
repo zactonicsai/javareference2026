@@ -1,0 +1,193 @@
+{{- $https := eq (include "kc.https" .) "true" }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keycloak-admin
+  labels:
+    {{- include "kc.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  username: {{ .Values.admin.username | quote }}
+  password: {{ .Values.admin.password | quote }}
+  # read by other charts / scripts
+  internalUrl: {{ include "kc.internalUrl" . | quote }}
+  publicUrl: {{ include "kc.url" . | quote }}
+  realm: {{ .Values.realm.name | quote }}
+  issuer: {{ include "kc.issuer" . | quote }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak
+  labels:
+    {{- include "kc.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+    {{- include "kc.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  strategy: { type: Recreate }                 # one DB schema owner at a time
+  selector:
+    matchLabels: { app: keycloak }
+  template:
+    metadata:
+      labels: { app: keycloak, version: v1, app.kubernetes.io/part-of: aks-sso-platform }
+      annotations:
+        checksum/realm: {{ include (print $.Template.BasePath "/realm.yaml") . | sha256sum | trunc 16 }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9000"
+        prometheus.io/path: {{ printf "%s/metrics" .Values.relativePath | quote }}
+    spec:
+      serviceAccountName: keycloak
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000, seccompProfile: { type: RuntimeDefault } }
+      {{- if .Values.postgres.enabled }}
+      initContainers:
+        - name: wait-for-postgres
+          image: {{ .Values.postgres.image | quote }}
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          command: ["sh", "-c", "until pg_isready -h keycloak-postgres -U \"$PGUSER\"; do echo waiting for postgres; sleep 3; done"]
+          env:
+            - name: PGUSER
+              valueFrom: { secretKeyRef: { name: keycloak-postgres, key: username } }
+      {{- end }}
+      containers:
+        - name: keycloak
+          image: {{ .Values.image | quote }}
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          args:
+            - start                                   # production mode: real DB, strict defaults (not start-dev)
+            - --import-realm
+            - --db=postgres
+            - --http-relative-path={{ .Values.relativePath }}
+            - --hostname={{ include "kc.url" . }}     # full public URL incl. path (hostname v2)
+            - --hostname-strict=false
+            - --hostname-backchannel-dynamic=true     # in-cluster callers use the Service URL; tokens still carry the public issuer
+            - --proxy-headers=xforwarded              # trust X-Forwarded-* from the Istio gateway
+            - --http-enabled=true                     # TLS terminates at the gateway
+            - --health-enabled=true
+            - --metrics-enabled=true
+            - --http-management-port=9000
+            {{- if .Values.realm.reimportOnUpgrade }}
+            - --spi-import-strategy=OVERWRITE_EXISTING
+            {{- end }}
+            {{- range .Values.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom: { secretKeyRef: { name: keycloak-admin, key: username } }
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: keycloak-admin, key: password } }
+            - name: KC_DB_URL
+              valueFrom: { secretKeyRef: { name: keycloak-postgres, key: jdbcUrl } }
+            - name: KC_DB_USERNAME
+              valueFrom: { secretKeyRef: { name: keycloak-postgres, key: username } }
+            - name: KC_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: keycloak-postgres, key: password } }
+            - name: KC_LOG_LEVEL
+              value: {{ .Values.logLevel | quote }}
+            - name: KC_LOG_CONSOLE_OUTPUT
+              value: json                             # structured logs for Container Insights
+            - name: JAVA_OPTS_KC_HEAP
+              value: "-XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=50"
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: management, containerPort: 9000 }
+          # Keycloak 26 serves /health and /metrics on the MANAGEMENT port (9000), not 8080.
+          startupProbe:
+            httpGet: { path: {{ .Values.relativePath }}/health/started, port: management }
+            periodSeconds: 5
+            failureThreshold: 90                      # first start builds the server: up to 7.5 min
+          readinessProbe:
+            httpGet: { path: {{ .Values.relativePath }}/health/ready, port: management }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: {{ .Values.relativePath }}/health/live, port: management }
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - { name: realm, mountPath: /opt/keycloak/data/import, readOnly: true }
+      volumes:
+        - name: realm
+          secret: { secretName: keycloak-realm }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+    {{- include "kc.labels" . | nindent 4 }}
+spec:
+  selector: { app: keycloak }
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+    - { name: http-management, port: 9000, targetPort: management }
+{{- if .Values.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: keycloak
+  labels:
+    {{- include "kc.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: keycloak }
+{{- end }}
+{{- if not $https }}
+---
+# Plain-http deployment (IP / demo without TLS): let the admin console work without TLS on the master realm too.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-post-install
+  labels:
+    {{- include "kc.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 30
+  template:
+    metadata:
+      labels: { app: keycloak-post-install }
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      restartPolicy: OnFailure
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: kcadm
+          image: {{ .Values.image | quote }}
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+              KC={{ include "kc.internalUrl" . }}
+              KCADM="/opt/keycloak/bin/kcadm.sh --config /tmp/kcadm.config"
+              for i in $(seq 1 90); do
+                $KCADM config credentials --server "$KC" --realm master --user "$KC_USER" --password "$KC_PASS" 2>/dev/null && break
+                echo "waiting for keycloak ($i)…"; sleep 5
+              done
+              $KCADM update realms/master -s sslRequired=NONE
+              $KCADM update realms/{{ .Values.realm.name }} -s sslRequired=NONE
+              echo "sslRequired=NONE on master + {{ .Values.realm.name }} (http deployment)"
+          env:
+            - name: KC_USER
+              valueFrom: { secretKeyRef: { name: keycloak-admin, key: username } }
+            - name: KC_PASS
+              valueFrom: { secretKeyRef: { name: keycloak-admin, key: password } }
+{{- end }}

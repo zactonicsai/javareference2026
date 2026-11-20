@@ -1,0 +1,24 @@
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/crash.log
+**/terraform.tfvars
+**/*.auto.tfvars
+!**/terraform.tfvars.example
+
+# generated secrets / hand-off files (never commit)
+.platform/
+**/.secrets/
+**/*.pem
+**/*.key
+**/*.crt
+
+# build output
+**/build/
+**/.gradle/
+**/node_modules/
+**/out/
+.DS_Store

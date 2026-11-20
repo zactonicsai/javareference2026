@@ -1,0 +1,28 @@
+# Copy to terraform.tfvars and edit. Everything has a default; the only things most people change are below.
+
+location            = "centralus"
+resource_group_name = "rg-appsteam-platform"
+cluster_name        = "aks-appsteam"
+environment         = "dev"
+
+# Who may reach the website (80/443). Keep 0.0.0.0/0 for a public site, or lock it to your IP:
+#   scripts/allow-ip.sh --me
+allowed_source_cidrs = ["0.0.0.0/0"]
+
+# Cost / size knobs
+sku_tier         = "Free"            # "Standard" for the 99.95% SLA (~USD 73/month)
+system_vm_size   = "Standard_D4ds_v5"
+user_vm_size     = "Standard_D4ds_v5"
+user_min_count   = 1
+user_max_count   = 5
+outbound_type    = "loadBalancer"    # or "managedNATGateway"
+
+# Monitoring
+alert_email    = ""                  # e.g. "platform-team@example.com"
+enable_grafana = false
+
+# Registry for the Spring Boot image (03-apps-keycloak)
+create_acr = true
+
+# Entra ID (optional): give a group cluster-admin through Azure RBAC
+# admin_group_object_ids = ["00000000-0000-0000-0000-000000000000"]

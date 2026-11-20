@@ -1,0 +1,30 @@
+# <publicUrl><path>… → oauth2-proxy → upstream. The upstream receives the full path (e.g. /project2/index.html).
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: {{ include "sp.name" . }}-sso
+  labels:
+    {{- include "sp.labels" . | nindent 4 }}
+spec:
+  hosts:
+    {{- toYaml .Values.hosts | nindent 4 }}
+  gateways:
+    - {{ .Values.gateway }}
+  http:
+    - name: {{ include "sp.name" . }}-slash
+      match:
+        - uri: { exact: {{ include "sp.pathNoSlash" . | quote }} }
+      redirect:
+        uri: {{ include "sp.path" . | quote }}
+        redirectCode: 301
+    - name: {{ include "sp.name" . }}
+      match:
+        - uri: { prefix: {{ include "sp.path" . | quote }} }
+      route:
+        - destination:
+            host: {{ include "sp.name" . }}-sso.{{ .Release.Namespace }}.svc.cluster.local
+            port: { number: 4180 }
+      timeout: 60s
+      retries:
+        attempts: 2
+        retryOn: connect-failure,refused-stream,unavailable

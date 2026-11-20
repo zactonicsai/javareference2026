@@ -1,0 +1,14 @@
+Keycloak {{ .Chart.AppVersion }} — realm "{{ .Values.realm.name }}"
+
+  admin console:  {{ include "kc.url" . }}/admin/          (master realm: {{ .Values.admin.username }} / Secret keycloak-admin)
+  realm account:  {{ include "kc.url" . }}/realms/{{ .Values.realm.name }}/account/
+  OIDC discovery: {{ include "kc.issuer" . }}/.well-known/openid-configuration
+  in-cluster:     {{ include "kc.internalUrl" . }}
+
+  users ({{ .Values.realm.name }}):
+{{- range .Values.realm.users }}
+    {{ printf "%-8s" .username }} groups: {{ join ", " .groups | default "-" }}
+{{- end }}
+
+Apps register their own OIDC clients (launchpad, sso-proxy charts). Realm changes after the first start belong
+in the admin console or `kcadm.sh` — the import file is only read once.

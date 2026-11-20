@@ -1,0 +1,15 @@
+{{- if and .Values.monitoring.podMonitor (.Capabilities.APIVersions.Has "azmonitoring.coreos.com/v1") }}
+apiVersion: azmonitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: keycloak
+  labels:
+    {{- include "kc.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: { app: keycloak }
+  podMetricsEndpoints:
+    - port: management
+      path: {{ printf "%s/metrics" .Values.relativePath | quote }}
+      interval: 30s
+{{- end }}

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<!--
+  Shared fragments. Every page does:
+    <head th:replace="~{layout :: head(${pageTitle})}">
+    <header th:replace="~{layout :: header}">
+    <footer th:replace="~{layout :: footer}">
+  Everything is served from this origin (no CDN, no web fonts): CSS is compiled Tailwind in /css/app.css.
+-->
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title)">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${title != null ? title + ' · ' + app.title() : app.title()}">Launchpad</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+
+<!-- ============================================================ icon sprite (used with <use href="#icon-…">) -->
+<svg th:fragment="icons" xmlns="http://www.w3.org/2000/svg" class="hidden" aria-hidden="true">
+  <symbol id="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+  <symbol id="icon-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.9 12.1 21 2M15 8l3 3M18 5l2 2"/></symbol>
+  <symbol id="icon-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="icon-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="icon-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="icon-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+  <symbol id="icon-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21a2 2 0 0 1 2-2h13"/></symbol>
+  <symbol id="icon-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="icon-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="icon-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="icon-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 21h20z"/><path d="M12 9v5M12 17.5v.5"/></symbol>
+  <symbol id="icon-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+</svg>
+
+<!-- ============================================================ header -->
+<header th:fragment="header" class="border-b border-slate-200 bg-white/80 backdrop-blur sticky top-0 z-10">
+  <svg th:replace="~{layout :: icons}"></svg>
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+    <a href="/" class="flex items-center gap-3 min-w-0">
+      <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm">
+        <svg class="h-5 w-5"><use href="#icon-bolt"/></svg>
+      </span>
+      <span class="truncate">
+        <span class="block text-sm font-semibold text-slate-900 leading-tight" th:text="${app.title()}">Launchpad</span>
+        <span class="hidden sm:block text-xs text-slate-500 leading-tight" th:text="${app.tagline()}">tagline</span>
+      </span>
+    </a>
+    <nav class="flex items-center gap-1 text-sm">
+      <a href="/" class="nav-link">Services</a>
+      <a href="/restricted" class="nav-link">Restricted</a>
+      <a th:if="${user.isAdmin()}" href="/admin" class="nav-link">Admin</a>
+      <span class="mx-2 h-6 w-px bg-slate-200" aria-hidden="true"></span>
+      <th:block th:if="${user.isAuthenticated()}">
+        <span class="hidden md:inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-slate-700">
+          <svg class="h-4 w-4 text-slate-500"><use href="#icon-user"/></svg>
+          <span th:text="${user.displayName()}">name</span>
+          <span th:if="${user.isAdmin()}" class="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">admin</span>
+        </span>
+        <form th:action="@{/logout}" method="post" class="inline">
+          <button type="submit" class="btn-secondary ml-1">Sign out</button>
+        </form>
+      </th:block>
+      <a th:unless="${user.isAuthenticated()}" href="/oauth2/authorization/keycloak" class="btn-primary">Sign in</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============================================================ footer -->
+<footer th:fragment="footer" class="mt-16 border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+  <p>
+    <span th:text="${app.title()}">Launchpad</span> ·
+    signed in as <span th:text="${user.isAuthenticated() ? user.username() : 'nobody'}">nobody</span>
+    <th:block th:if="${user.isAuthenticated() and !user.groupList().isEmpty()}">
+      · groups: <span th:text="${#strings.listJoin(user.groupList(), ', ')}">groups</span>
+    </th:block>
+    · <a class="underline hover:text-slate-700" th:href="${keycloak.accountUrl()}">account</a>
+    · <a class="underline hover:text-slate-700" href="/status">status.json</a>
+  </p>
+</footer>
+
+<!-- ============================================================ status badge -->
+<span th:fragment="badge(status)" class="badge" th:classappend="'badge-' + ${status.css()}"
+      th:attr="data-status-for=${status.id()}" th:title="|last check ${status.checkedAtText()} ${status.message()}|">
+  <span class="dot"></span>
+  <span class="label" th:text="${status.state()}">UP</span>
+</span>
+
+</body>
+</html>

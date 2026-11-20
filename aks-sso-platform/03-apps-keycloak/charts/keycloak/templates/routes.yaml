@@ -1,0 +1,25 @@
+# Publishes Keycloak at <publicUrl>/auth through the shared Istio gateway.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: keycloak
+  labels:
+    {{- include "kc.labels" . | nindent 4 }}
+spec:
+  hosts:
+    {{- toYaml .Values.hosts | nindent 4 }}
+  gateways:
+    - {{ .Values.gateway }}
+  http:
+    - name: keycloak
+      match:
+        - uri: { prefix: {{ .Values.relativePath }}/ }
+        - uri: { exact: {{ .Values.relativePath }} }
+      route:
+        - destination:
+            host: keycloak.{{ .Release.Namespace }}.svc.cluster.local
+            port: { number: 8080 }
+      timeout: 60s
+      retries:
+        attempts: 2
+        retryOn: connect-failure,refused-stream,unavailable

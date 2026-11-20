@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .btn-primary   { @apply inline-flex items-center rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition; }
+  .btn-secondary { @apply inline-flex items-center rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition; }
+  .nav-link      { @apply rounded-md px-3 py-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900; }
+  .link          { @apply font-medium text-indigo-700 hover:underline; }
+  .card          { @apply block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition; }
+  .tile-icon     { @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl; }
+  .section-title { @apply text-lg font-semibold text-slate-900; }
+  .dot           { @apply inline-block h-2 w-2 rounded-full; }
+  .badge         { @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide; }
+  .badge-up      { @apply border-emerald-200 bg-emerald-50 text-emerald-700; }
+  .badge-up .dot { @apply bg-emerald-500; }
+  .badge-down    { @apply border-rose-200 bg-rose-50 text-rose-700; }
+  .badge-down .dot { @apply bg-rose-500 animate-pulse; }
+  .badge-unknown { @apply border-slate-200 bg-slate-50 text-slate-500; }
+  .badge-unknown .dot { @apply bg-slate-400; }
+}

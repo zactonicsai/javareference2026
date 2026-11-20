@@ -1,0 +1,29 @@
+# Tests never talk to Keycloak: explicit endpoints (no discovery), dummy secret, local URLs.
+app:
+  public-url: http://localhost
+  keycloak:
+    public-url: http://localhost:8180/auth
+    internal-url: http://localhost:8180/auth
+    realm: appsteam
+  status:
+    interval: 1h            # no background probes during tests
+  services:
+    - id: open-tool
+      name: Open tool
+      url: http://open.example
+      health-url: ""
+    - id: p2-tool
+      name: Project 2 tool
+      url: http://p2.example
+      groups: [project2]
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: launchpad
+            client-secret: test
+management:
+  server:
+    port: -1

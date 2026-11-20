@@ -1,0 +1,12 @@
+{
+  "name": "launchpad-css",
+  "private": true,
+  "description": "Builds src/main/resources/static/css/app.css (Tailwind, compiled offline — the site loads nothing from the Internet)",
+  "scripts": {
+    "build": "tailwindcss -c tailwind.config.js -i input.css -o ../src/main/resources/static/css/app.css --minify",
+    "watch": "tailwindcss -c tailwind.config.js -i input.css -o ../src/main/resources/static/css/app.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

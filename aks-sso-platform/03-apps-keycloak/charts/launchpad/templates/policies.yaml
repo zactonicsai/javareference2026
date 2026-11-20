@@ -1,0 +1,44 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "lp.name" . }}
+  labels:
+    {{- include "lp.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "lp.selector" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ .Values.networkPolicy.gatewayNamespace | quote }} }
+        - podSelector: {}
+      ports:
+        - { port: 8080, protocol: TCP }
+        - { port: 15020, protocol: TCP }
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }    # kubelet probes + ama-metrics scrapes
+      ports:
+        - { port: 8081, protocol: TCP }
+        - { port: 15020, protocol: TCP }
+{{- end }}
+{{- if and .Values.monitoring.podMonitor (.Capabilities.APIVersions.Has "azmonitoring.coreos.com/v1") }}
+---
+apiVersion: azmonitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "lp.name" . }}
+  labels:
+    {{- include "lp.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "lp.selector" . | nindent 6 }}
+  podMetricsEndpoints:
+    - port: management
+      path: /actuator/prometheus
+      interval: 30s
+{{- end }}

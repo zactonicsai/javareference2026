@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('Service unavailable')}"></head>
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased">
+<header th:replace="~{layout :: header}"></header>
+<main class="mx-auto max-w-2xl px-4 sm:px-6 py-16">
+  <div class="rounded-3xl border border-amber-200 bg-white p-8 shadow-sm">
+    <div class="flex items-start gap-4">
+      <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+        <svg class="h-6 w-6"><use href="#icon-warn"/></svg>
+      </span>
+      <div class="min-w-0">
+        <p class="text-xs font-semibold uppercase tracking-widest text-amber-600">Service notice</p>
+        <h1 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+          <span th:text="${service.name()}">Service</span> is <span th:text="${status.isUp()} ? 'back' : 'currently unavailable'">currently unavailable</span>
+        </h1>
+        <p class="mt-2 text-slate-600" th:unless="${status.isUp()}">
+          The platform health check could not reach it, so we stopped you here instead of showing a browser error.
+          It is usually back within a few minutes (a restart, an upgrade, a node being replaced).
+        </p>
+        <p class="mt-2 text-slate-600" th:if="${status.isUp()}">The last check succeeded — you can open it now.</p>
+      </div>
+    </div>
+
+    <dl class="mt-6 grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 text-sm">
+      <dt class="text-slate-500">state</dt><dd><span th:replace="~{layout :: badge(${status})}"></span></dd>
+      <dt class="text-slate-500">last check</dt><dd class="font-mono" th:text="${status.checkedText()}">t</dd>
+      <dt class="text-slate-500">HTTP status</dt><dd class="font-mono" th:text="${status.httpStatus()} > 0 ? ${status.httpStatus()} : 'no response'">-</dd>
+      <dt class="text-slate-500">reason</dt><dd class="font-mono break-all" th:text="${status.message()} != '' ? ${status.message()} : '—'">-</dd>
+      <dt class="text-slate-500">address</dt><dd class="font-mono break-all" th:text="${serviceUrl}">url</dd>
+    </dl>
+
+    <div class="mt-6 flex flex-wrap gap-3">
+      <a th:href="@{/unavailable/{id}(id=${service.id()}, retry=1)}" class="btn-primary">Check again</a>
+      <a th:href="${serviceUrl}" class="btn-secondary">Open anyway</a>
+      <a href="/" class="btn-secondary">← Back to services</a>
+    </div>
+    <p class="mt-6 text-xs text-slate-400">Checked <span th:text="${now}">now</span>. Still down after a while? Tell the platform team — the admin page shows every service's health.</p>
+  </div>
+</main>
+<footer th:replace="~{layout :: footer}"></footer>
+</body>
+</html>

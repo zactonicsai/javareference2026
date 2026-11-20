@@ -1,0 +1,25 @@
+# Deployed by ../../istio.tf (Terraform fills these in). Can also be installed by hand:
+#   helm upgrade --install gateway-config charts/gateway-config -n istio-ingress --set publicUrl=https://host
+
+publicUrl: https://CHANGE-ME
+
+gateway:
+  name: public-gateway          # VirtualServices reference istio-ingress/public-gateway
+  selector:
+    istio: ingress              # pods of the `istio-ingress` gateway release carry label istio=ingress
+  hosts: ["*"]                  # one gateway for every host; VirtualServices narrow it down
+  httpsRedirect: true           # HTTP 80 -> 301 https
+  credentialName: gateway-tls   # kubernetes.io/tls Secret in the gateway's namespace
+  minProtocolVersion: TLSV1_2
+
+peerAuthentication:
+  enabled: true
+  namespace: istio-system       # the root namespace => mesh-wide default
+  mode: PERMISSIVE              # STRICT once every client is in the mesh
+
+monitoring:
+  podMonitors: true             # azmonitoring.coreos.com/v1 PodMonitors (created only if the CRD exists)
+  istioNamespace: istio-system
+  interval: 30s
+
+chartHash: ""                   # set by Terraform; unused by templates

@@ -1,0 +1,35 @@
+# The single public entry point. Every service publishes a VirtualService that binds to this Gateway:
+#   gateways: [ {{ .Release.Namespace }}/{{ .Values.gateway.name }} ]
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: {{ .Values.gateway.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gc.labels" . | nindent 4 }}
+  annotations:
+    platform/public-url: {{ .Values.publicUrl | quote }}
+spec:
+  selector:
+    {{- toYaml .Values.gateway.selector | nindent 4 }}
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        {{- toYaml .Values.gateway.hosts | nindent 8 }}
+      {{- if .Values.gateway.httpsRedirect }}
+      tls:
+        httpsRedirect: true
+      {{- end }}
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      hosts:
+        {{- toYaml .Values.gateway.hosts | nindent 8 }}
+      tls:
+        mode: SIMPLE
+        credentialName: {{ .Values.gateway.credentialName }}
+        minProtocolVersion: {{ .Values.gateway.minProtocolVersion }}

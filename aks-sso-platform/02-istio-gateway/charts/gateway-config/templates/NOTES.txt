@@ -1,0 +1,15 @@
+Gateway {{ .Release.Namespace }}/{{ .Values.gateway.name }} is configured for {{ .Values.publicUrl }}
+
+Publish a service by adding a VirtualService in its own namespace:
+
+  apiVersion: networking.istio.io/v1
+  kind: VirtualService
+  metadata: { name: my-app }
+  spec:
+    hosts: ["*"]
+    gateways: ["{{ .Release.Namespace }}/{{ .Values.gateway.name }}"]
+    http:
+      - match: [{ uri: { prefix: /my-app/ } }]
+        route: [{ destination: { host: my-app, port: { number: 8080 } } }]
+
+Mesh mTLS: {{ .Values.peerAuthentication.mode }} (PeerAuthentication default in {{ .Values.peerAuthentication.namespace }})

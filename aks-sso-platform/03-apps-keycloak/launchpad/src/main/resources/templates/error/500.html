@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('Error')}"></head>
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased">
+<header th:replace="~{layout :: header}"></header>
+<main class="mx-auto max-w-2xl px-4 sm:px-6 py-16 text-center">
+  <p class="text-xs font-semibold uppercase tracking-widest text-rose-600">500</p>
+  <h1 class="mt-2 text-3xl font-bold tracking-tight text-slate-900">Something went wrong</h1>
+  <p class="mt-3 text-slate-600">The launchpad hit an unexpected error. It has been logged; try again in a moment.</p>
+  <p class="mt-1 font-mono text-xs text-slate-400" th:if="${reference != null}">reference <span th:text="${reference}">ref</span> · <span th:text="${timestamp}">t</span></p>
+  <a href="/" class="btn-primary mt-8">← Back to services</a>
+</main>
+<footer th:replace="~{layout :: footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{{- if .Values.peerAuthentication.enabled }}
+# Mesh-wide default for pod-to-pod mTLS. PERMISSIVE accepts both plaintext and mTLS (needed while some callers,
+# e.g. Helm hook Jobs without a sidecar, are outside the mesh). Switch to STRICT when everything has a sidecar.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: {{ .Values.peerAuthentication.namespace }}
+  labels:
+    {{- include "gc.labels" . | nindent 4 }}
+spec:
+  mtls:
+    mode: {{ .Values.peerAuthentication.mode }}
+{{- end }}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('Restricted')}"></head>
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased">
+<header th:replace="~{layout :: header}"></header>
+<main class="mx-auto max-w-3xl px-4 sm:px-6 py-12">
+  <p class="text-xs font-semibold uppercase tracking-widest text-indigo-600">Restricted page</p>
+  <h1 class="mt-2 text-3xl font-bold tracking-tight text-slate-900">Hello, <span th:text="${user.displayName()}">you</span> 👋</h1>
+  <p class="mt-3 text-slate-600">You can see this page because you signed in through Keycloak. Anonymous visitors are sent to the login page instead.</p>
+
+  <div class="mt-8 grid gap-4 sm:grid-cols-2">
+    <div class="card">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Your identity</p>
+      <dl class="mt-3 space-y-2 text-sm">
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">username</dt><dd class="font-mono" th:text="${user.username()}">u</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">e-mail</dt><dd class="font-mono" th:text="${user.email()}">e</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">groups</dt><dd class="font-mono" th:text="${user.groupList().isEmpty()} ? '—' : ${#strings.listJoin(user.groupList(), ', ')}">g</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-slate-500">admin</dt><dd class="font-mono" th:text="${user.isAdmin()}">false</dd></div>
+      </dl>
+    </div>
+    <div class="card">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Your project pages</p>
+      <ul class="mt-3 space-y-2 text-sm">
+        <li th:each="p : ${myProjects}">
+          <a class="link" th:href="@{/projects/{id}(id=${p.id()})}" th:text="${p.name()}">Project</a>
+          <span class="text-slate-400">· group <code th:text="${p.group()}">g</code></span>
+        </li>
+        <li th:if="${myProjects.isEmpty()}" class="text-slate-500">none — you are not in a project group</li>
+      </ul>
+      <p class="mt-4 text-xs text-slate-500">Membership is managed in the Keycloak admin console (Users → Groups). Changes apply at the next sign-in.</p>
+    </div>
+  </div>
+
+  <div class="mt-8 flex gap-3">
+    <a href="/" class="btn-secondary">← Back to services</a>
+    <a th:href="${keycloak.accountUrl()}" class="btn-secondary">Manage account</a>
+  </div>
+</main>
+<footer th:replace="~{layout :: footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,141 @@
+{{- $https := eq (include "sp.https" .) "true" }}
+{{- $p := .Values.oauth2Proxy }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "sp.name" . }}-sso
+  labels:
+    {{- include "sp.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  client-id: {{ include "sp.clientId" . | quote }}
+  client-secret: {{ .Values.client.secret | quote }}
+  cookie-secret: {{ $p.cookieSecret | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sp.name" . }}-sso
+  labels:
+    {{- include "sp.labels" . | nindent 4 }}
+data:
+  oauth2-proxy.cfg: |
+    http_address = "0.0.0.0:4180"
+    metrics_address = "0.0.0.0:44180"
+    reverse_proxy = true                      # trust X-Forwarded-* from the Istio gateway
+    real_client_ip_header = "X-Forwarded-For"
+
+    provider = "oidc"
+    provider_display_name = "Keycloak"
+    oidc_issuer_url = {{ include "sp.publicIssuer" . | quote }}
+    skip_oidc_discovery = true                # explicit endpoints: browser → public URL, proxy → in-cluster URL
+    login_url = "{{ include "sp.publicIssuer" . }}/protocol/openid-connect/auth"
+    redeem_url = "{{ include "sp.internalIssuer" . }}/protocol/openid-connect/token"
+    oidc_jwks_url = "{{ include "sp.internalIssuer" . }}/protocol/openid-connect/certs"
+    profile_url = "{{ include "sp.internalIssuer" . }}/protocol/openid-connect/userinfo"
+    scope = {{ $p.scope | quote }}
+    code_challenge_method = "S256"
+    redirect_url = {{ include "sp.callback" . | quote }}
+    proxy_prefix = {{ include "sp.proxyPrefix" . | quote }}
+    whitelist_domains = [{{ include "sp.host" . | quote }}]
+    email_domains = ["*"]
+    insecure_oidc_allow_unverified_email = true
+    oidc_groups_claim = "groups"
+    {{- if .Values.allowedGroups }}
+    allowed_groups = [{{ range $i, $g := .Values.allowedGroups }}{{ if $i }}, {{ end }}{{ $g | quote }}{{ end }}]
+    {{- end }}
+    skip_provider_button = true
+    {{- if $p.skipAuthRoutes }}
+    skip_auth_routes = [{{ range $i, $r := $p.skipAuthRoutes }}{{ if $i }}, {{ end }}{{ $r | quote }}{{ end }}]
+    {{- end }}
+
+    upstreams = [{{ .Values.upstream | quote }}]
+    pass_user_headers = {{ $p.passUserHeaders }}
+    pass_access_token = {{ $p.passAccessToken }}
+    set_xauthrequest = true
+    pass_host_header = false
+
+    session_store_type = "cookie"
+    cookie_name = {{ include "sp.cookieName" . | quote }}
+    cookie_secure = {{ $https }}
+    cookie_httponly = true
+    cookie_samesite = "lax"
+    cookie_expire = {{ $p.cookieExpire | quote }}
+    cookie_refresh = {{ $p.cookieRefresh | quote }}
+    cookie_path = {{ include "sp.path" . | quote }}
+
+    request_logging = true
+    silence_ping_logging = true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sp.name" . }}-sso
+  labels:
+    {{- include "sp.labels" . | nindent 4 }}
+spec:
+  replicas: {{ $p.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "sp.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "sp.selector" . | nindent 8 }}
+        version: v1
+        app.kubernetes.io/part-of: aks-sso-platform
+      annotations:
+        checksum/config: {{ toJson $p | sha256sum | trunc 16 }}{{ .Values.upstream | sha256sum | trunc 8 }}{{ toJson .Values.allowedGroups | sha256sum | trunc 8 }}
+        checksum/secret: {{ printf "%s%s" .Values.client.secret $p.cookieSecret | sha256sum | trunc 16 }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "44180"
+        prometheus.io/path: /metrics
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 2000, runAsGroup: 2000, seccompProfile: { type: RuntimeDefault } }
+      automountServiceAccountToken: false
+      containers:
+        - name: oauth2-proxy
+          image: {{ $p.image | quote }}
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          args: ["--config=/etc/oauth2-proxy/oauth2-proxy.cfg"]
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom: { secretKeyRef: { name: {{ include "sp.name" . }}-sso, key: client-id } }
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: {{ include "sp.name" . }}-sso, key: client-secret } }
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom: { secretKeyRef: { name: {{ include "sp.name" . }}-sso, key: cookie-secret } }
+          ports:
+            - { name: http, containerPort: 4180 }
+            - { name: metrics, containerPort: 44180 }
+          startupProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 3
+            failureThreshold: 20
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 20
+          resources:
+            {{- toYaml $p.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/oauth2-proxy, readOnly: true }
+      volumes:
+        - name: config
+          configMap: { name: {{ include "sp.name" . }}-sso }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sp.name" . }}-sso
+  labels:
+    {{- include "sp.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "sp.selector" . | nindent 4 }}
+  ports:
+    - { name: http, port: 4180, targetPort: http }
+    - { name: http-metrics, port: 44180, targetPort: metrics }

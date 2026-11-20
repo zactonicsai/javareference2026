@@ -1,0 +1,25 @@
+# Mounted at /config/services.yaml and imported by Spring (spring.config.import). Relaxed binding maps
+# healthUrl -> health-url etc. "{publicUrl}" inside service URLs is replaced by the app at runtime.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "lp.name" . }}-config
+  labels:
+    {{- include "lp.labels" . | nindent 4 }}
+data:
+  services.yaml: |
+    app:
+      title: {{ .Values.app.title | quote }}
+      tagline: {{ .Values.app.tagline | quote }}
+      admin-group: {{ .Values.app.adminGroup | quote }}
+      status:
+        interval: {{ .Values.app.statusInterval | quote }}
+      projects:
+        {{- toYaml .Values.app.projects | nindent 8 }}
+      services:
+        {{- toYaml .Values.app.services | nindent 8 }}
+      extra-services:
+        {{- if .Values.app.extraServices }}
+        {{- toYaml .Values.app.extraServices | nindent 8 }}
+        {{- else }} []
+        {{- end }}

@@ -1,0 +1,130 @@
+# Defaults for local runs. In the cluster the chart overrides via environment variables (SPRING_* / APP_* /
+# KEYCLOAK_*) and mounts /config/services.yaml (spring.config.import below).
+spring:
+  application:
+    name: launchpad
+  config:
+    import: "optional:file:/config/services.yaml"
+  thymeleaf:
+    cache: true
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          max-age: 1h
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: ${KEYCLOAK_CLIENT_ID:launchpad}
+            client-secret: ${KEYCLOAK_CLIENT_SECRET:change-me}
+            client-name: Keycloak
+            authorization-grant-type: authorization_code
+            scope: openid,profile,email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          keycloak:
+            # NO issuer-uri on purpose: that triggers OIDC discovery at startup over the public (self-signed) URL
+            # and would fail inside the cluster. The browser-facing endpoint uses the public URL, the
+            # back-channel ones the in-cluster Service. SecurityConfig still validates `iss` against the public issuer.
+            authorization-uri: ${KEYCLOAK_PUBLIC_URL:http://localhost:8180/auth}/realms/${KEYCLOAK_REALM:appsteam}/protocol/openid-connect/auth
+            token-uri: ${KEYCLOAK_INTERNAL_URL:http://localhost:8180/auth}/realms/${KEYCLOAK_REALM:appsteam}/protocol/openid-connect/token
+            jwk-set-uri: ${KEYCLOAK_INTERNAL_URL:http://localhost:8180/auth}/realms/${KEYCLOAK_REALM:appsteam}/protocol/openid-connect/certs
+            user-info-uri: ${KEYCLOAK_INTERNAL_URL:http://localhost:8180/auth}/realms/${KEYCLOAK_REALM:appsteam}/protocol/openid-connect/userinfo
+            user-name-attribute: preferred_username
+
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework      # behind the Istio gateway: honour X-Forwarded-Proto/Host for redirect URIs
+  shutdown: graceful
+  servlet:
+    session:
+      cookie:
+        name: LAUNCHPAD_SESSION
+        http-only: true
+        same-site: lax
+        secure: ${APP_SECURE_COOKIES:false}
+      timeout: 30m
+  error:
+    whitelabel:
+      enabled: false
+    include-message: never
+    include-stacktrace: never
+
+management:
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8081}    # separate port: never exposed through the gateway
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+    access:
+      default: read-only
+  endpoint:
+    health:
+      probes:
+        enabled: true                        # /actuator/health/liveness + /readiness for Kubernetes
+      show-details: always
+      show-components: always
+  health:
+    diskspace:
+      enabled: false
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  info:
+    env:
+      enabled: true
+    java:
+      enabled: true
+    build:
+      enabled: true
+
+info:
+  app:
+    name: ${app.title}
+    public-url: ${app.public-url}
+
+logging:
+  level:
+    root: info
+    com.appsteam.launchpad: info
+    org.springframework.security: warn
+  # the chart sets LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs → JSON lines for Container Insights
+
+app:
+  title: ${APP_TITLE:Apps Team Launchpad}
+  tagline: ${APP_TAGLINE:Single sign-on launch page for the team's services}
+  public-url: ${APP_PUBLIC_URL:http://localhost:8080}
+  admin-group: ${APP_ADMIN_GROUP:admin}
+  keycloak:
+    public-url: ${KEYCLOAK_PUBLIC_URL:http://localhost:8180/auth}
+    internal-url: ${KEYCLOAK_INTERNAL_URL:http://localhost:8180/auth}
+    realm: ${KEYCLOAK_REALM:appsteam}
+  status:
+    interval: ${APP_STATUS_INTERVAL:15s}
+    connect-timeout: 2s
+    read-timeout: 3s
+  # projects / services come from the chart's services.yaml; these defaults make `gradle bootRun` useful locally
+  projects:
+    - id: project2
+      name: Project 2
+      group: project2
+      description: Example project page — members of the Keycloak group "project2" only.
+    - id: project3
+      name: Project 3
+      group: project3
+      description: Example project page — members of the Keycloak group "project3" only.
+  services:
+    - id: keycloak-account
+      name: My account
+      description: Change your password, see your sessions
+      url: "${app.keycloak.public-url}/realms/${app.keycloak.realm}/account/"
+      health-url: "${app.keycloak.internal-url}/realms/${app.keycloak.realm}/.well-known/openid-configuration"
+      icon: key
+      order: 10

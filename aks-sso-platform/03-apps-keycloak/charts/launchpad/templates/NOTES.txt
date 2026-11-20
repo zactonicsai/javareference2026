@@ -1,0 +1,10 @@
+{{ .Values.app.title }} is published at {{ .Values.publicUrl }}
+
+  launch page:  {{ .Values.publicUrl }}/
+  restricted:   {{ .Values.publicUrl }}/restricted          (any Keycloak user)
+  projects:     {{- range .Values.app.projects }} {{ $.Values.publicUrl }}/projects/{{ .id }} (group {{ .group }}){{ end }}
+  admin:        {{ .Values.publicUrl }}/admin               (group {{ .Values.app.adminGroup }})
+  status JSON:  {{ .Values.publicUrl }}/status
+
+  OIDC client "{{ .Values.client.id }}" in realm {{ .Values.keycloak.realm }} (registered by Job {{ include "lp.name" . }}-client-register)
+  health/metrics: management port 8081 (cluster-internal only)

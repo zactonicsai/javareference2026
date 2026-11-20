@@ -1,0 +1,14 @@
+# Remote state in an Azure Storage account (create the account once, outside Terraform):
+#   az group create -n rg-tfstate -l centralus
+#   az storage account create -n <unique-name> -g rg-tfstate -l centralus --sku Standard_LRS --allow-blob-public-access false
+#   az storage container create -n tfstate --account-name <unique-name> --auth-mode login
+# Then:  cp backend.tf.example backend.tf   (edit the names)   and   terraform init -migrate-state
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "rg-tfstate"
+    storage_account_name = "CHANGE-ME"
+    container_name       = "tfstate"
+    key                  = "aks-sso-platform/01-infra.tfstate"
+    use_azuread_auth     = true
+  }
+}

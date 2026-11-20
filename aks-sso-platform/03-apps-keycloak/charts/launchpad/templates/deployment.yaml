@@ -1,0 +1,160 @@
+{{- $https := eq (include "lp.https" .) "true" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "lp.name" . }}
+  labels:
+    {{- include "lp.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lp.name" . }}
+  labels:
+    {{- include "lp.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "lp.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "lp.selector" . | nindent 8 }}
+        version: v1
+        app.kubernetes.io/part-of: aks-sso-platform
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum | trunc 16 }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum | trunc 16 }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: /actuator/prometheus
+    spec:
+      serviceAccountName: {{ include "lp.name" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      terminationGracePeriodSeconds: 30
+      {{- if .Values.keycloak.waitForKeycloak }}
+      initContainers:
+        - name: wait-for-keycloak
+          image: busybox:1.37
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] }, readOnlyRootFilesystem: true }
+          command: ["sh", "-c"]
+          args:
+            - |
+              for i in $(seq 1 120); do
+                wget -q -O /dev/null -T 3 "{{ include "lp.discovery" . }}" && { echo "keycloak realm {{ .Values.keycloak.realm }} is up"; exit 0; }
+                echo "waiting for keycloak ($i)…"; sleep 5
+              done
+              echo "keycloak still not answering — starting anyway (login will fail until it is up)"; exit 0
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits:   { cpu: 100m, memory: 32Mi }
+      {{- end }}
+      containers:
+        - name: launchpad
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          env:
+            - { name: APP_PUBLIC_URL,        value: {{ .Values.publicUrl | quote }} }
+            - { name: APP_ADMIN_GROUP,       value: {{ .Values.app.adminGroup | quote }} }
+            - { name: APP_SECURE_COOKIES,    value: {{ $https | quote }} }
+            - { name: KEYCLOAK_PUBLIC_URL,   value: {{ .Values.keycloak.publicUrl | quote }} }
+            - { name: KEYCLOAK_INTERNAL_URL, value: {{ .Values.keycloak.internalUrl | quote }} }
+            - { name: KEYCLOAK_REALM,        value: {{ .Values.keycloak.realm | quote }} }
+            - name: KEYCLOAK_CLIENT_ID
+              valueFrom: { secretKeyRef: { name: {{ include "lp.name" . }}-client, key: client-id } }
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: {{ include "lp.name" . }}-client, key: client-secret } }
+            {{- if .Values.logging.structured }}
+            - { name: LOGGING_STRUCTURED_FORMAT_CONSOLE, value: {{ .Values.logging.structured | quote }} }
+            {{- end }}
+            - { name: SERVER_PORT, value: "8080" }
+            - { name: MANAGEMENT_SERVER_PORT, value: "8081" }
+            - { name: JAVA_TOOL_OPTIONS, value: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -Djava.io.tmpdir=/tmp" }
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: management, containerPort: 8081 }
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: management }
+            periodSeconds: 5
+            failureThreshold: 36            # 3 minutes for a cold JVM on a small node
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: management }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: management }
+            periodSeconds: 20
+          lifecycle:
+            preStop:
+              exec: { command: ["sh", "-c", "sleep 5"] }   # let the gateway stop sending before the JVM exits
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /config, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: config
+          configMap: { name: {{ include "lp.name" . }}-config }
+        - name: tmp
+          emptyDir: { sizeLimit: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lp.name" . }}
+  labels:
+    {{- include "lp.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "lp.selector" . | nindent 4 }}
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+    - { name: http-management, port: 8081, targetPort: management }
+{{- if .Values.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "lp.name" . }}
+  labels:
+    {{- include "lp.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: {{ include "lp.name" . }} }
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }} } }
+{{- end }}
+{{- if .Values.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "lp.name" . }}
+  labels:
+    {{- include "lp.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "lp.selector" . | nindent 6 }}
+{{- end }}

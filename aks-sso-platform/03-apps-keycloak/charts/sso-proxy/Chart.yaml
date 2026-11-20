@@ -1,0 +1,7 @@
+apiVersion: v2
+name: sso-proxy
+description: Put any in-cluster service behind Keycloak single sign-on — oauth2-proxy (OIDC, PKCE, group check) + Istio VirtualService + self-registered Keycloak client. One release per service.
+type: application
+version: 1.0.0
+appVersion: "7.15.3"
+keywords: [oauth2-proxy, keycloak, sso, istio]

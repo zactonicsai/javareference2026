@@ -1,0 +1,30 @@
+# Publishes the launchpad on the shared gateway. Deliberately NOT "prefix: /": each service owns its own
+# prefixes, so VirtualServices never overlap and the merge order across them does not matter.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: {{ include "lp.name" . }}
+  labels:
+    {{- include "lp.labels" . | nindent 4 }}
+spec:
+  hosts:
+    {{- toYaml .Values.hosts | nindent 4 }}
+  gateways:
+    - {{ .Values.gateway }}
+  http:
+    - name: launchpad
+      match:
+        {{- range .Values.routes.exact }}
+        - uri: { exact: {{ . | quote }} }
+        {{- end }}
+        {{- range .Values.routes.prefixes }}
+        - uri: { prefix: {{ . | quote }} }
+        {{- end }}
+      route:
+        - destination:
+            host: {{ include "lp.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
+            port: { number: 8080 }
+      timeout: 30s
+      retries:
+        attempts: 2
+        retryOn: connect-failure,refused-stream,unavailable

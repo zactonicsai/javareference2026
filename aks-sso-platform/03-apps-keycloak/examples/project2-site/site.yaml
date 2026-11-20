@@ -1,0 +1,122 @@
+# A tiny static site (nginx, unprivileged) that lives at /project2/ behind sso-proxy. The HTML shows the identity
+# headers oauth2-proxy forwards, so you can see SSO working end to end. Apply with examples/project2-site/install.sh.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: project2-site
+  labels: { app: project2-site, app.kubernetes.io/part-of: aks-sso-platform }
+data:
+  nginx.conf: |
+    server {
+      listen 8080;
+      server_name _;
+      # oauth2-proxy forwards the full public path, so the site is served under /project2/
+      location = /healthz { access_log off; return 200 "ok\n"; add_header Content-Type text/plain; }
+      location = / { return 302 /project2/; }
+      location /project2/ {
+        alias /usr/share/nginx/html/;
+        index index.html;
+        sub_filter_once off;
+        sub_filter_types text/html;
+        sub_filter '__USER__'   $http_x_forwarded_preferred_username;
+        sub_filter '__EMAIL__'  $http_x_forwarded_email;
+        sub_filter '__GROUPS__' $http_x_forwarded_groups;
+      }
+    }
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Project 2</title>
+      <style>
+        body{margin:0;font-family:ui-sans-serif,system-ui,sans-serif;background:#f8fafc;color:#1e293b}
+        main{max-width:40rem;margin:4rem auto;padding:0 1.5rem}
+        .card{background:#fff;border:1px solid #e2e8f0;border-radius:1rem;padding:2rem;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+        .tag{display:inline-block;background:#ede9fe;color:#6d28d9;font-size:.7rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:.2rem .6rem;border-radius:999px}
+        h1{margin:.6rem 0 0;font-size:1.9rem}
+        dl{display:grid;grid-template-columns:8rem 1fr;gap:.4rem 1rem;margin-top:1.5rem;font-size:.95rem}
+        dt{color:#64748b}dd{margin:0;font-family:ui-monospace,Menlo,monospace}
+        a{color:#4338ca}
+        .ok{color:#047857;font-weight:600}
+      </style>
+    </head>
+    <body>
+      <main>
+        <div class="card">
+          <span class="tag">project 2 · members only</span>
+          <h1>Welcome to the Project 2 site</h1>
+          <p>You reached this page through <strong>sso-proxy</strong>: Keycloak authenticated you and checked that you belong to the <code>project2</code> group. The headers below were added by oauth2-proxy.</p>
+          <dl>
+            <dt>user</dt><dd>__USER__</dd>
+            <dt>e-mail</dt><dd>__EMAIL__</dd>
+            <dt>groups</dt><dd>__GROUPS__</dd>
+            <dt>served by</dt><dd>nginx (project2-site)</dd>
+          </dl>
+          <p class="ok">✓ SSO works end to end.</p>
+          <p><a href="/">← Launchpad</a> · <a href="/project2/oauth2/sign_out?rd=/">Sign out</a></p>
+        </div>
+      </main>
+    </body>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: project2-site
+  labels: { app: project2-site, app.kubernetes.io/part-of: aks-sso-platform }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: project2-site }
+  template:
+    metadata:
+      labels: { app: project2-site, version: v1, app.kubernetes.io/part-of: aks-sso-platform }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 101, runAsGroup: 101, seccompProfile: { type: RuntimeDefault } }
+      automountServiceAccountToken: false
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          ports: [{ name: http, containerPort: 8080 }]
+          startupProbe:  { httpGet: { path: /healthz, port: http }, periodSeconds: 3, failureThreshold: 20 }
+          readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 10 }
+          livenessProbe:  { httpGet: { path: /healthz, port: http }, periodSeconds: 20 }
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits:   { cpu: 200m, memory: 64Mi }
+          volumeMounts:
+            - { name: conf, mountPath: /etc/nginx/conf.d/default.conf, subPath: nginx.conf, readOnly: true }
+            - { name: conf, mountPath: /usr/share/nginx/html/index.html, subPath: index.html, readOnly: true }
+      volumes:
+        - name: conf
+          configMap: { name: project2-site }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: project2-site
+  labels: { app: project2-site, app.kubernetes.io/part-of: aks-sso-platform }
+spec:
+  selector: { app: project2-site }
+  ports: [{ name: http, port: 8080, targetPort: http }]
+---
+# only oauth2-proxy (same namespace) and the kubelet/monitoring may talk to the site directly
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: project2-site
+  labels: { app: project2-site, app.kubernetes.io/part-of: aks-sso-platform }
+spec:
+  podSelector:
+    matchLabels: { app: project2-site }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { port: 8080, protocol: TCP }
+        - { port: 15020, protocol: TCP }

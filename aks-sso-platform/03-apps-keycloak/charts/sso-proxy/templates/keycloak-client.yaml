@@ -1,0 +1,109 @@
+{{- if .Values.client.registerJob }}
+{{- $kc := .Values.keycloak }}
+# Creates/updates this proxy's OIDC client in Keycloak after install/upgrade and removes it before uninstall.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sp.name" . }}-sso-client-scripts
+  labels:
+    {{- include "sp.labels" . | nindent 4 }}
+data:
+  register.sh: |
+    #!/bin/bash
+    set -e
+    KCADM="/opt/keycloak/bin/kcadm.sh --config /tmp/kcadm.config"
+    REALM={{ $kc.realm | quote }}
+    for i in $(seq 1 90); do
+      $KCADM config credentials --server "$KC_URL" --realm master --user "$KC_USER" --password "$KC_PASS" 2>/dev/null && break
+      echo "waiting for keycloak at $KC_URL ($i)…"; sleep 5
+    done
+    $KCADM get realms/$REALM >/dev/null || { echo "realm $REALM does not exist — install charts/keycloak first"; exit 1; }
+    cat > /tmp/client.json <<EOF
+    {
+      "clientId": "$CLIENT_ID",
+      "name": "{{ default .Release.Name .Values.displayName }} (sso-proxy)",
+      "description": "oauth2-proxy in front of {{ .Values.upstream }} — path {{ include "sp.path" . }}{{ if .Values.allowedGroups }}, groups {{ join ", " .Values.allowedGroups }}{{ end }}",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "$CLIENT_SECRET",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "rootUrl": "{{ .Values.publicUrl }}",
+      "baseUrl": "{{ .Values.publicUrl }}{{ include "sp.path" . }}",
+      "redirectUris": ["{{ include "sp.callback" . }}"],
+      "webOrigins": ["{{ .Values.publicUrl }}"],
+      "attributes": { "pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "{{ .Values.publicUrl }}/*" },
+      "defaultClientScopes": ["profile", "email", "roles", "web-origins", "groups", "basic"]
+    }
+    EOF
+    ID=$($KCADM get clients -r $REALM -q clientId=$CLIENT_ID --fields id --format csv --noquotes 2>/dev/null | head -1)
+    if [ -z "$ID" ]; then
+      $KCADM create clients -r $REALM -f /tmp/client.json
+      ID=$($KCADM get clients -r $REALM -q clientId=$CLIENT_ID --fields id --format csv --noquotes | head -1)
+      echo "created client $CLIENT_ID ($ID)"
+    else
+      $KCADM update clients/$ID -r $REALM -f /tmp/client.json
+      echo "updated client $CLIENT_ID ($ID)"
+    fi
+    HAVE=$($KCADM get clients/$ID/protocol-mappers/models -r $REALM --fields name --format csv --noquotes 2>/dev/null || true)
+    echo "$HAVE" | grep -qx groups || $KCADM create clients/$ID/protocol-mappers/models -r $REALM \
+      -s name=groups -s protocol=openid-connect -s protocolMapper=oidc-group-membership-mapper \
+      -s 'config."claim.name"=groups' -s 'config."full.path"=false' -s 'config."id.token.claim"=true' -s 'config."access.token.claim"=true' -s 'config."userinfo.token.claim"=true'
+    echo "client $CLIENT_ID ready — redirect {{ include "sp.callback" . }}"
+  unregister.sh: |
+    #!/bin/bash
+    KCADM="/opt/keycloak/bin/kcadm.sh --config /tmp/kcadm.config"
+    $KCADM config credentials --server "$KC_URL" --realm master --user "$KC_USER" --password "$KC_PASS" 2>/dev/null || { echo "keycloak unreachable; nothing to clean"; exit 0; }
+    ID=$($KCADM get clients -r {{ $kc.realm }} -q clientId=$CLIENT_ID --fields id --format csv --noquotes 2>/dev/null | head -1)
+    if [ -n "$ID" ]; then $KCADM delete clients/$ID -r {{ $kc.realm }} && echo "deleted client $CLIENT_ID"; else echo "client $CLIENT_ID not present"; fi
+---
+{{- range $phase := list "register" "unregister" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "sp.name" $ }}-sso-client-{{ $phase }}
+  labels:
+    {{- include "sp.labels" $ | nindent 4 }}
+  annotations:
+    helm.sh/hook: {{ ternary "post-install,post-upgrade" "pre-delete" (eq $phase "register") | quote }}
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ ternary 30 2 (eq $phase "register") }}
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels: { app: {{ include "sp.name" $ }}-sso-client-{{ $phase }} }
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      restartPolicy: OnFailure
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: kcadm
+          image: {{ $kc.image | quote }}
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          command: ["/bin/bash", "/scripts/{{ $phase }}.sh"]
+          env:
+            - { name: KC_URL, value: {{ $kc.internalUrl | quote }} }
+            - name: KC_USER
+              valueFrom: { secretKeyRef: { name: {{ $kc.adminSecret }}, key: username } }
+            - name: KC_PASS
+              valueFrom: { secretKeyRef: { name: {{ $kc.adminSecret }}, key: password } }
+            - name: CLIENT_ID
+              valueFrom: { secretKeyRef: { name: {{ include "sp.name" $ }}-sso, key: client-id } }
+            - name: CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: {{ include "sp.name" $ }}-sso, key: client-secret } }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: "1", memory: 512Mi }
+          volumeMounts:
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+      volumes:
+        - name: scripts
+          configMap: { name: {{ include "sp.name" $ }}-sso-client-scripts, defaultMode: 0755 }
+---
+{{- end }}
+{{- end }}

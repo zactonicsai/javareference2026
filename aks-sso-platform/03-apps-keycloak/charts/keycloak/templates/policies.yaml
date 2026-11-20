@@ -1,0 +1,47 @@
+{{- if .Values.networkPolicy.enabled }}
+# Cilium enforces these (01-infra: network_policy = cilium). Ingress-only; egress stays open.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak
+  labels:
+    {{- include "kc.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: { app: keycloak }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ .Values.networkPolicy.gatewayNamespace | quote }} }
+        - podSelector: {}                              # same namespace: apps, hook Jobs
+      ports:
+        - { port: 8080, protocol: TCP }
+        - { port: 15090, protocol: TCP }               # envoy metrics (merged on 15020)
+        - { port: 15020, protocol: TCP }
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }   # ama-metrics scrapes /auth/metrics, kubelet probes
+      ports:
+        - { port: 9000, protocol: TCP }
+        - { port: 15020, protocol: TCP }
+{{- if .Values.postgres.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak-postgres
+  labels:
+    {{- include "kc.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: { app: keycloak-postgres }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: keycloak }
+      ports:
+        - { port: 5432, protocol: TCP }
+{{- end }}
+{{- end }}

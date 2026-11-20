@@ -1,0 +1,7 @@
+{{ .Release.Name }}: {{ .Values.publicUrl }}{{ include "sp.path" . }}  →  oauth2-proxy  →  {{ .Values.upstream }}
+  who:      {{ if .Values.allowedGroups }}Keycloak groups {{ join ", " .Values.allowedGroups }}{{ else }}any signed-in user of realm {{ .Values.keycloak.realm }}{{ end }}
+  client:   {{ include "sp.clientId" . }} (registered by Job {{ include "sp.name" . }}-sso-client-register)
+  sign-out: {{ .Values.publicUrl }}{{ include "sp.proxyPrefix" . }}/sign_out
+  upstream headers: X-Forwarded-User, X-Forwarded-Email, X-Forwarded-Preferred-Username, X-Forwarded-Groups
+
+Add a tile on the launchpad:  scripts/add-service.sh (already done if you used it to install this release)

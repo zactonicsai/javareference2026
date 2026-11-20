@@ -1,0 +1,7 @@
+apiVersion: v2
+name: keycloak
+description: Keycloak 26 (production mode) with PostgreSQL, realm "appsteam" (groups/roles admin, project2, project3 + default users), published at <publicUrl>/auth through the Istio gateway
+type: application
+version: 1.0.0
+appVersion: "26.4"
+keywords: [keycloak, sso, oidc, istio]

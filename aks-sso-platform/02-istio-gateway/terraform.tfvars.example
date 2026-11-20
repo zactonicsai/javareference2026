@@ -1,0 +1,14 @@
+# scripts/apply.sh writes the cluster/IP inputs into generated.auto.tfvars (from flags or 01-infra's hand-off).
+# Put permanent choices here (copy to terraform.tfvars).
+
+# resource_group_name      = "rg-appsteam-platform"
+# cluster_name             = "aks-appsteam"
+# public_ip_name           = "aks-appsteam-ingress-pip"     # empty = create one in the node resource group
+# public_ip_resource_group = "rg-appsteam-platform"
+# allowed_source_cidrs     = ["0.0.0.0/0"]
+
+istio_version     = "1.31.4"
+high_availability = false        # true = 2 replicas + PodDisruptionBudgets
+https_redirect    = true
+mtls_mode         = "PERMISSIVE" # STRICT once every caller has a sidecar
+extra_dns_names   = []           # e.g. ["apps.example.com"] when you own a domain pointing at the IP

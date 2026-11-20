@@ -1,0 +1,7 @@
+apiVersion: v2
+name: launchpad
+description: Apps Team Launchpad — Spring Boot (Java 25) SSO landing page with Keycloak login, group-restricted project pages, live service status and an unavailable-service notice. Registers its own OIDC client in Keycloak.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords: [spring-boot, keycloak, oidc, istio, launchpad]

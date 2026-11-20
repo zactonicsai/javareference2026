@@ -1,0 +1,7 @@
+build/
+.gradle/
+out/
+tailwind/node_modules/
+*.log
+.idea/
+*.iml
