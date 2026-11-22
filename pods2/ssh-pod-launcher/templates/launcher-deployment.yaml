@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-launcher
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-launcher
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-launcher
+    spec:
+      serviceAccountName: {{ .Release.Name }}-launcher
+      containers:
+        - name: launcher
+          image: {{ .Values.sshImage }}
+          command: ["/bin/sh", "-c", "cp /config/index.html /tmp/index.html && python3 /config/server.py"]
+          env:
+            - name: SSH_POD_NAME
+              value: {{ .Values.sshPodName | quote }}
+            - name: POD_NAMESPACE
+              value: {{ .Values.namespace | quote }}
+            - name: SSH_USER
+              value: {{ .Values.sshUser | quote }}
+            - name: SSH_IMAGE
+              value: {{ .Values.sshImage | quote }}
+            - name: UI_PORT
+              value: {{ .Values.uiPort | quote }}
+          ports:
+            - containerPort: {{ .Values.uiPort }}
+              name: http
+          volumeMounts:
+            - name: files
+              mountPath: /config
+              readOnly: True
+      volumes:
+        - name: files
+          configMap:
+            name: {{ .Release.Name }}-files

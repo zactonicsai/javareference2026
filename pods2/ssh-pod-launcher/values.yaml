@@ -1,0 +1,9 @@
+namespace: default
+sshPodName: ssh-python-dev
+sshServiceName: ssh-python-svc
+sshUser: devuser
+sshAuthorizedKey: ""
+sshImage: python:3.12-slim
+sshNodePort: 30022
+serviceType: NodePort # Use ClusterIP or LoadBalancer if preferred
+uiPort: 8080

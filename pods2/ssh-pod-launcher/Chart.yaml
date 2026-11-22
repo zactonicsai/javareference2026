@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ssh-pod-launcher
+description: Static HTML UI with a button to create a Python-enabled SSH pod and Service
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
